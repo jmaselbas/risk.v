@@ -9,7 +9,7 @@ module alu(rst, clk, opcode, funct3, funct7, in1, in2, out);
    wire [14:0] 	     op = {funct7, funct3, opcode};
 
    always @(posedge clk) begin
-      if (rst == 1'b1) begin
+      if (rst) begin
 	 out <= 32'b0;
       end else begin
 	 case (op)

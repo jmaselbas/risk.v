@@ -33,7 +33,7 @@ module cpu(rst, clk);
 
    reg [2:0]   state;
    always @(posedge clk) begin
-      if (rst == 1'b1) begin
+      if (rst) begin
 	 state <= 0;
       end else begin
 	 case (state)
