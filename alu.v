@@ -1,37 +1,44 @@
-module alu(rst, clk, opcode, funct3, funct7, in1, in2, out);
+module alu(rst, clk, op, in1, in2, out);
    input rst, clk;
-   input [6:0] funct7;
-   input [2:0] funct3;
-   input [4:0] opcode;
+   input [3:0] op;
    input [31:0] in1, in2;
    output reg [31:0] out;
 
-   wire [14:0] 	     op = {funct7, funct3, opcode};
+   parameter OP_ADD  = 4'b0000;
+   parameter OP_SUB  = 4'b1000;
+   parameter OP_SLL  = 4'b0001;
+   parameter OP_SLT  = 4'b0010;
+   parameter OP_SLTU = 4'b0011;
+   parameter OP_XOR  = 4'b0100;
+   parameter OP_SRL  = 4'b0101;
+   parameter OP_SRA  = 4'b1101;
+   parameter OP_OR   = 4'b0110;
+   parameter OP_AND  = 4'b0111;
 
    always @(posedge clk) begin
       if (rst) begin
 	 out <= 32'b0;
       end else begin
 	 case (op)
-	   15'b0000000_000_01100: /* R-ADD */
+	   OP_ADD:
 	     out <= in1 + in2;
-	   15'b0100000_000_01100: /* R-SUB */
+	   OP_SUB:
 	     out <= in1 - in2;
-	   15'b0000000_001_01100: /* R-SLL */
+	   OP_SLL:
 	     out <= in1 << in2;
-	   15'b0000000_010_01100: /* R-SLT */
+	   OP_SLT:
 	     out <= $signed(in1) < $signed(in2);
-	   15'b0000000_011_01100: /* R-SLTU */
+	   OP_SLTU:
 	     out <= in1 < in2;
-	   15'b0000000_100_01100: /* R-XOR */
+	   OP_XOR:
 	     out <= in1 ^ in2;
-	   15'b0000000_101_01100: /* R-SRL */
+	   OP_SRL:
 	     out <= in1 >> in2;
-	   15'b0100000_101_01100: /* R-SRA */
+	   OP_SRA:
 	     out <= in1 >>> in2;
-	   15'b0000000_110_01100: /* R-OR */
+	   OP_OR:
 	     out <= in1 | in2;
-	   15'b0000000_111_01100: /* R-AND */
+	   OP_AND:
 	     out <= in1 & in2;
 	   default:
 	     out <= 32'b0;

@@ -8,14 +8,12 @@ module cpu(rst, clk);
 
    /* decode output */
    wire [4:0]  opcode;
-   wire [2:0]  funct3;
-   wire [6:0]  funct7;
+   wire [3:0]   alu_op;
    wire        invalid;
    wire [4:0]  d_rs1, d_rs2, d_rd;
    wire [31:0] d_val1, d_val2;
    reg [4:0]   d_opcode;
-   reg [2:0]   d_funct3;
-   reg [6:0]   d_funct7;
+   reg [3:0]   d_alu_op;
 
    /* execute output */
    wire [31:0] x_out;
@@ -31,9 +29,9 @@ module cpu(rst, clk);
    parameter EXECUTE = 3;
    parameter WRITE_BACK = 4;
 
-   decode decode(ninsn, opcode, funct3, funct7, invalid, d_rd, d_rs1, d_rs2);
+   decode decode(ninsn, opcode, alu_op, invalid, d_rd, d_rs1, d_rs2);
    regfile regfile(rst, clk, wren, rden, d_rd, d_rs1, d_rs2, x_out, d_val1, d_val2);
-   alu alu(rst, clk, d_opcode, d_funct3, d_funct7, d_val1, d_val2, x_out);
+   alu alu(rst, clk, d_alu_op, d_val1, d_val2, x_out);
    rom rom(clk, rst, fetch_addr, data_o);
 
    reg [2:0]   state;
@@ -56,8 +54,7 @@ module cpu(rst, clk);
 	   end
 	   DECODE: begin
 	      d_opcode <= opcode;
-	      d_funct3 <= funct3;
-	      d_funct7 <= funct7;
+	      d_alu_op <= alu_op;
 	      state <= EXECUTE;
 	   end
 	   EXECUTE: begin
