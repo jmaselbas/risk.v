@@ -14,7 +14,7 @@ all: romcode.hex
 	$(OBJCOPY) -j .text -O binary $^ $@ && truncate -s %4 $@ && $(OBJCOPY) -I binary --reverse-bytes=4 $@
 
 %.hex: %.bin
-	xxd -c4 $< | sed 's/[0-9]\+: //; s/ //; s/\(........\).*/\1/' >$@
+	xxd -c4 $< | sed 's/[0-9a-fA-F]\+: //; s/ //; s/\(........\).*/\1/' >$@
 
 clean:
 	rm -f romcode.hex
