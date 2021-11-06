@@ -17,6 +17,6 @@ all: romcode.hex
 	xxd -c4 $< | sed 's/[0-9a-fA-F]\+: //; s/ //; s/\(........\).*/\1/' >$@
 
 clean:
-	rm -f romcode.hex
+	rm -f romcode.hex romcode.elf romcode.bin
 
 .PHONY: all clean
