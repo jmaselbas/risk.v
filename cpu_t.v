@@ -1,4 +1,4 @@
-module cpue_test;
+module cpu_test;
    reg clk, rst;
 
    cpu test_cpu (rst, clk);
