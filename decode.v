@@ -27,7 +27,7 @@ module decode(insn, opcode, alu_op, invalid, rd, rs1, rs2, imm);
    assign imm_s = {{20{insn[31]}},insn[30:25],insn[11:8],insn[7]};
    assign imm_b = {{19{insn[31]}},insn[7],insn[30:25],insn[11:8],1'b0};
    assign imm_u = {insn[31],insn[30:20],insn[19:12],12'b0};
-   assign imm_j = {{11{insn[31]}},insn[19:12],insn[30:25],insn[24:21],1'b0};
+   assign imm_j = {{16{insn[31]}},insn[19:12],insn[30:25],insn[24:21],1'b0};
 
    assign imm = (opcode == 5'b01101) ? imm_u : /* LUI */
 		(opcode == 5'b00101) ? imm_u : /* AUIPC */
