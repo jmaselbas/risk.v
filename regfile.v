@@ -8,8 +8,7 @@ module regfile(rst, clk, wr, rd, selwr, selrd1, selrd2, in, out1, out2);
    output reg [31:0] rfile [0:31];
    integer    i;
 
-   assign sen = clk || rst;
-   always @(posedge sen) begin
+   always @(posedge clk) begin
       if (rst) begin
 	 for (i = 0; i < 32; i = i + 1) begin
 	    rfile[i] <= i;
