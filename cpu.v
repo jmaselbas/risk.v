@@ -20,6 +20,10 @@ module cpu(rst, clk);
    /* execute output */
    wire [31:0] x_out;
    reg [31:0]  x_val;
+   reg [6:0] fetch_addr;
+   wire [31:0] fetch_insn;
+   reg [31:0] pc;
+   wire [31:0] data_o;
 
    parameter IDLE = 0;
    parameter FETCH = 1;
@@ -30,21 +34,24 @@ module cpu(rst, clk);
    decode decode(ninsn, opcode, funct3, funct7, invalid, d_rd, d_rs1, d_rs2);
    regfile regfile(rst, clk, wren, rden, d_rd, d_rs1, d_rs2, x_out, d_val1, d_val2);
    alu alu(rst, clk, d_opcode, d_funct3, d_funct7, d_val1, d_val2, x_out);
+   rom rom(clk, rst, fetch_addr, data_o);
 
    reg [2:0]   state;
    always @(posedge clk) begin
       if (rst) begin
 	 state <= 0;
+         pc <= 0;
+         fetch_addr <= 0;
       end else begin
 	 case (state)
 	   IDLE: begin
 	      wren <= 0;
 	      rden <= 1;
+              fetch_addr <= pc[8:2];
 	      state <= FETCH;
 	   end
 	   FETCH: begin
-	      /* add r0 <- r0 + r1 */
-	      ninsn <= 32'b0000000_00000_00001_000_00000_0110011;
+              ninsn <= data_o;
 	      state <= DECODE;
 	   end
 	   DECODE: begin
@@ -60,6 +67,7 @@ module cpu(rst, clk);
 	   WRITE_BACK: begin
 	      wren <= 1;
 	      state <= IDLE;
+	      pc <= pc + 4;
 	   end
 	 endcase
       end
