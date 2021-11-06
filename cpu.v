@@ -3,8 +3,10 @@ module cpu(rst, clk);
 
    reg rden, wren;
 
-   reg [31:0]  ninsn;
    wire [31:0] out;
+
+   /* fetch output */
+   wire [31:0] data_o;
 
    /* decode output */
    wire [4:0]  opcode;
@@ -18,60 +20,79 @@ module cpu(rst, clk);
 
    /* execute output */
    wire [31:0] x_out;
-   reg [31:0]  x_val;
    reg [6:0] fetch_addr;
    wire [31:0] fetch_insn;
    reg [31:0] pc;
-   wire [31:0] data_o;
+
+   reg [31:0]  wb_val;
 
    parameter IDLE = 0;
    parameter FETCH = 1;
    parameter DECODE = 2;
-   parameter EXECUTE = 3;
-   parameter WRITE_BACK = 4;
+   parameter SELECT = 3;
+   parameter EXECUTE = 4;
+   parameter WRITE_BACK = 5;
 
-   decode decode(ninsn, opcode, alu_op, invalid, d_rd, d_rs1, d_rs2, d_imm);
-   regfile regfile(rst, clk, wren, rden, d_rd, d_rs1, d_rs2, x_out, d_reg1, d_reg2);
+   decode decode(data_o, opcode, alu_op, invalid, d_rd, d_rs1, d_rs2, d_imm);
+   regfile regfile(rst, clk, wren, rden, d_rd, d_rs1, d_rs2, wb_val, d_reg1, d_reg2);
    alu alu(rst, clk, d_alu_op, d_val1, d_val2, x_out);
    rom rom(clk, rst, fetch_addr, data_o);
 
    reg [2:0]   state;
    always @(posedge clk) begin
       if (rst) begin
-	 state <= 0;
-         pc <= 0;
-         fetch_addr <= 0;
+	 rden <= 0;
+	 wren <= 0;
+	 state <= IDLE;
+	 pc <= 0;
+	 fetch_addr <= 0;
+	 d_val1 <= 0;
+	 d_val2 <= 0;
+	 d_opcode <= 0;
+	 d_alu_op <= 0;
+	 wb_val <= 0;
       end else begin
 	 case (state)
 	   IDLE: begin
 	      wren <= 0;
-	      rden <= 1;
-              fetch_addr <= pc[8:2];
+	      rden <= 0;
+	      fetch_addr <= pc[8:2];
 	      state <= FETCH;
 	   end
 	   FETCH: begin
-              ninsn <= data_o;
+	      rden <= 1;
 	      state <= DECODE;
 	   end
 	   DECODE: begin
+	      rden <= 0;
 	      d_opcode <= opcode;
 	      d_alu_op <= alu_op;
+	      state <= SELECT;
+	   end
+	   SELECT: begin
 	      d_val1 <= d_reg1;
 	      if (opcode == 5'b00100) begin
 		 d_val2 <= d_imm;
 	      end else if (opcode == 5'b01100) begin
 		 d_val2 <= d_reg2;
+	      end else begin
+		 d_val2 <= 0;
 	      end
 	      state <= EXECUTE;
 	   end
 	   EXECUTE: begin
-	      x_val <= x_out;
 	      state <= WRITE_BACK;
 	   end
 	   WRITE_BACK: begin
 	      wren <= 1;
+	      if (d_opcode == 5'b11011) begin
+		 pc <= pc + d_imm;
+		 wb_val <= pc + 4;
+	      end else begin
+		 pc <= pc + 4;
+		 wb_val <= x_out;
+	      end
 	      state <= IDLE;
-	      pc <= pc + 4;
 	   end
 	 endcase
       end
