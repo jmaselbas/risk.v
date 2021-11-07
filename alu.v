@@ -16,7 +16,7 @@ always @(posedge clk) begin
 		`ALU_SUB:
 		  out <= in1 - in2;
 		`ALU_SLL:
-		  out <= in1 << in2;
+		  out <= in1 << in2[4:0];
 		`ALU_SLT:
 		  out <= $signed(in1) < $signed(in2);
 		`ALU_SLTU:
@@ -24,9 +24,9 @@ always @(posedge clk) begin
 		`ALU_XOR:
 		  out <= in1 ^ in2;
 		`ALU_SRL:
-		  out <= in1 >> in2;
+		  out <= in1 >> in2[4:0];
 		`ALU_SRA:
-		  out <= in1 >>> in2;
+		  out <= in1 >>> in2[4:0];
 		`ALU_OR:
 		  out <= in1 | in2;
 		`ALU_AND:
