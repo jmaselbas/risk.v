@@ -31,3 +31,13 @@
 `define COMP_BGEU 3'b111
 `define BCU_DISABLE 3'b010
 `define BCU_TAKEN   3'b011
+
+/* encoding for load/store from funct3 */
+`define LSU_LB  3'b000
+`define LSU_LH  3'b001
+`define LSU_LW  3'b010
+`define LSU_LBU 3'b100
+`define LSU_LHU 3'b101
+`define LSU_SB  3'b000
+`define LSU_SH  3'b001
+`define LSU_SW  3'b010
