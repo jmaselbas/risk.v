@@ -29,9 +29,8 @@ module cpu(rst, clk);
    parameter IDLE = 0;
    parameter FETCH = 1;
    parameter DECODE = 2;
-   parameter SELECT = 3;
-   parameter EXECUTE = 4;
-   parameter WRITE_BACK = 5;
+   parameter EXECUTE = 3;
+   parameter WRITE_BACK = 4;
 
    decode decode(data_o, opcode, alu_op, invalid, d_rd, d_rs1, d_rs2, d_imm);
    regfile regfile(rst, clk, wren, rden, d_rd, d_rs1, d_rs2, wb_val, d_reg1, d_reg2);
@@ -67,9 +66,6 @@ module cpu(rst, clk);
 	      rden <= 0;
 	      d_opcode <= opcode;
 	      d_alu_op <= alu_op;
-	      state <= SELECT;
-	   end
-	   SELECT: begin
 	      d_val1 <= d_reg1;
 	      if (opcode == 5'b00100) begin
 		 d_val2 <= d_imm;
