@@ -72,7 +72,7 @@ always @(posedge clk) begin
 		FETCH_INSN: begin
 			wren <= 0;
 			rden <= 1;
-			$display("fetching pc = %x\n", pc);
+			$display("fetching pc = %x", pc);
 			state <= DECODE_AND_REGFILE_FETCH;
 		end
 		/* {f_insn} */
@@ -103,11 +103,11 @@ always @(posedge clk) begin
 			if (x_opcode == 5'b11011) begin // JAL
 				pc <= pc + x_imm;
 				fetch_addr <= (pc + x_imm) >> 2;
-				$display("JAL branching to pc = %x\n", pc + x_imm);
+				$display("JAL branching to pc = %x", pc + x_imm);
 			end else if (x_opcode == 5'b11001) begin // JALR
 				pc <= alu_out + x_imm;
 				fetch_addr <= (alu_out + x_imm) >> 2;
-				$display("JALR branching to pc = %x\n", alu_out + x_imm);
+				$display("JALR branching to pc = %x", alu_out + x_imm);
 			end else begin
 				pc <= pc + 4;
 				fetch_addr <= (pc + 4) >> 2;
