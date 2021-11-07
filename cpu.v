@@ -17,78 +17,74 @@ module cpu(rst, clk);
    reg [31:0]  d_val1, d_val2;
    reg [4:0]   d_opcode;
    reg [3:0]   d_alu_op;
+   wire [31:0] alu_in1;
+   wire [31:0] alu_in2;
+   reg [31:0] d_imm_reg;
 
    /* execute output */
-   wire [31:0] x_out;
+   wire [31:0] alu_out;
    reg [6:0] fetch_addr;
    wire [31:0] fetch_insn;
    reg [31:0] pc;
+   wire [31:0] rf_in;
 
    reg [31:0]  wb_val;
 
-   parameter IDLE = 0;
-   parameter FETCH = 1;
-   parameter DECODE = 2;
-   parameter EXECUTE = 3;
-   parameter WRITE_BACK = 4;
+   parameter FETCH_INSN = 0;
+   parameter DECODE_AND_REGFILE_FETCH = 1;
+   parameter EXECUTE = 2;
+   parameter WRITE_BACK = 3;
 
    decode decode(data_o, opcode, alu_op, invalid, d_rd, d_rs1, d_rs2, d_imm);
-   regfile regfile(rst, clk, wren, rden, d_rd, d_rs1, d_rs2, wb_val, d_reg1, d_reg2);
-   alu alu(rst, clk, d_alu_op, d_val1, d_val2, x_out);
+   regfile regfile(rst, clk, wren, rden, d_rd, d_rs1, d_rs2, rf_in, d_reg1, d_reg2);
+   alu alu(rst, clk, alu_op, alu_in1, alu_in2, alu_out);
    rom rom(clk, rst, fetch_addr, data_o);
+
+   assign alu_in1 = d_reg1;
+   assign alu_in2 = (opcode == 5'b00100) ? d_imm : d_reg2;
+
+   assign rf_in = (d_opcode == 5'b11011) ? pc + 4 : alu_out;
 
    reg [2:0]   state;
    always @(posedge clk) begin
       if (rst) begin
 	 rden <= 0;
 	 wren <= 0;
-	 state <= IDLE;
+	 state <= FETCH_INSN;
 	 pc <= 0;
 	 fetch_addr <= 0;
-	 d_val1 <= 0;
-	 d_val2 <= 0;
 	 d_opcode <= 0;
 	 d_alu_op <= 0;
-	 wb_val <= 0;
       end else begin
 	 case (state)
-	   IDLE: begin
-	      wren <= 0;
-	      rden <= 0;
-	      fetch_addr <= pc[8:2];
-	      state <= FETCH;
+	   FETCH_INSN: begin
+              wren <= 0;
+              rden <= 1;
+              $display("fetching pc = %x\n", pc);
+              state <= DECODE_AND_REGFILE_FETCH;
 	   end
-	   FETCH: begin
-	      rden <= 1;
-	      state <= DECODE;
-	   end
-	   DECODE: begin
-	      rden <= 0;
-	      d_opcode <= opcode;
-	      d_alu_op <= alu_op;
-	      d_val1 <= d_reg1;
-	      if (opcode == 5'b00100) begin
-		 d_val2 <= d_imm;
-	      end else if (opcode == 5'b01100) begin
-		 d_val2 <= d_reg2;
-	      end else begin
-		 d_val2 <= 0;
-	      end
+	   DECODE_AND_REGFILE_FETCH: begin
+              rden <= 0;
 	      state <= EXECUTE;
 	   end
 	   EXECUTE: begin
+	      d_opcode <= opcode;
+	      d_alu_op <= alu_op;
+              d_imm_reg <= d_imm;
+	      wren <= 1;
 	      state <= WRITE_BACK;
 	   end
 	   WRITE_BACK: begin
-	      wren <= 1;
 	      if (d_opcode == 5'b11011) begin
-		 pc <= pc + d_imm;
-		 wb_val <= pc + 4;
+		 pc <= pc + d_imm_reg;
+	         fetch_addr <= (pc + d_imm_reg) >> 2;
+                 $display("branching to pc = %x\n", pc + d_imm_reg);
 	      end else begin
 		 pc <= pc + 4;
-		 wb_val <= x_out;
+	         fetch_addr <= (pc + 4) >> 2;
 	      end
-	      state <= IDLE;
+	      wren <= 0;
+	      state <= FETCH_INSN;
 	   end
 	 endcase
       end
