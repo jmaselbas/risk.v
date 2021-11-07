@@ -20,6 +20,7 @@ module cpu(rst, clk);
    wire [31:0] alu_in1;
    wire [31:0] alu_in2;
    reg [31:0] d_imm_reg;
+   reg [31:0] reg1_val;
 
    /* execute output */
    wire [31:0] alu_out;
@@ -43,7 +44,10 @@ module cpu(rst, clk);
    assign alu_in1 = d_reg1;
    assign alu_in2 = (opcode == 5'b00100) ? d_imm : d_reg2;
 
-   assign rf_in = (d_opcode == 5'b11011) ? pc + 4 : alu_out;
+   /* we write back alu_out in RF in the general case
+      Except when executing JAL or JALR
+   */
+   assign rf_in = (d_opcode == 5'b11011 || d_opcode == 5'b11001) ? pc + 4 : alu_out;
 
    reg [2:0]   state;
    always @(posedge clk) begin
@@ -71,6 +75,7 @@ module cpu(rst, clk);
 	      d_opcode <= opcode;
 	      d_alu_op <= alu_op;
               d_imm_reg <= d_imm;
+              reg1_val <= d_reg1;
 	      wren <= 1;
 	      state <= WRITE_BACK;
 	   end
@@ -78,8 +83,12 @@ module cpu(rst, clk);
 	      if (d_opcode == 5'b11011) begin
 		 pc <= pc + d_imm_reg;
 	         fetch_addr <= (pc + d_imm_reg) >> 2;
-                 $display("branching to pc = %x\n", pc + d_imm_reg);
-	      end else begin
+                 $display("JAL branching to pc = %x\n", pc + d_imm_reg);
+	      end else if (d_opcode == 5'b11001) begin
+                 pc <= reg1_val + d_imm_reg;
+	         fetch_addr <= (reg1_val + d_imm_reg) >> 2;
+                 $display("JALR branching to pc = %x\n", reg1_val + d_imm_reg);
+              end else begin
 		 pc <= pc + 4;
 	         fetch_addr <= (pc + 4) >> 2;
 	      end
