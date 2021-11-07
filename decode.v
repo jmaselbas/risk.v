@@ -1,3 +1,5 @@
+ `include "rv32i.vh"
+
 module decode(insn, opcode, alu_op, invalid, rd, rs1, rs2, imm);
 input [31:0] insn;
 output [4:0] opcode;
@@ -29,14 +31,14 @@ assign imm_b = {{19{insn[31]}},insn[7],insn[30:25],insn[11:8],1'b0};
 assign imm_u = {insn[31],insn[30:20],insn[19:12],12'b0};
 assign imm_j = {{16{insn[31]}},insn[19:12],insn[30:25],insn[24:21],1'b0};
 
-assign imm = (opcode == 5'b01101) ? imm_u : /* LUI */
-	     (opcode == 5'b00101) ? imm_u : /* AUIPC */
-	     (opcode == 5'b11011) ? imm_j : /* JAL */
-	     (opcode == 5'b11001) ? imm_i : /* JALR */
-	     (opcode == 5'b11000) ? imm_b : /* BRANCH */
-	     (opcode == 5'b00000) ? imm_i : /* LOAD */
-	     (opcode == 5'b10000) ? imm_s : /* STORE */
-	     (opcode == 5'b00100) ? imm_i : /* ALU OP */
+assign imm = (opcode == `OP_LUI)    ? imm_u :
+	     (opcode == `OP_AUIPC)  ? imm_u :
+	     (opcode == `OP_JAL)    ? imm_j :
+	     (opcode == `OP_JALR)   ? imm_i :
+	     (opcode == `OP_BRANCH) ? imm_b :
+	     (opcode == `OP_LOAD)   ? imm_i :
+	     (opcode == `OP_STORE)  ? imm_s :
+	     (opcode == `OP_ALUIMM) ? imm_i :
 	     32'b0;
 
 endmodule

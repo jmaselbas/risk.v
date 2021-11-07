@@ -1,3 +1,5 @@
+`include "rv32i.vh"
+
 module cpu(rst, clk);
 input rst, clk;
 
@@ -44,8 +46,8 @@ rom rom(clk, rst, fetch_addr, f_insn);
   * executing JAL or JALR => we write pc + 4
   * executing AUIPC       => we write pc + imm
  */
-assign rf_in = (x_opcode == 5'b11011 || x_opcode == 5'b11001) ? pc + 4 :
-	       (x_opcode == 5'b00101) ? pc + $signed(x_imm) :
+assign rf_in = (x_opcode == `OP_JAL || x_opcode == `OP_JALR) ? pc + 4 :
+	       (x_opcode == `OP_AUIPC) ? pc + $signed(x_imm) :
 	       alu_out;
 
 reg [2:0]   state;
@@ -82,7 +84,7 @@ always @(posedge clk) begin
 			d_imm <= imm_w;
 			d_alu_op <= alu_op_w;
 			d_op_val1 <= reg1_w;
-			if (opcode_w == 5'b00100) begin
+			if (opcode_w == `OP_ALUIMM) begin
 				d_op_val2 <= imm_w;
 			end else begin
 				d_op_val2 <= reg2_w;
@@ -100,11 +102,11 @@ always @(posedge clk) begin
 		end
 		/* {x_opcode, x_rd, alu_out} */
 		WRITE_BACK: begin
-			if (x_opcode == 5'b11011) begin // JAL
+			if (x_opcode == `OP_JAL) begin
 				pc <= pc + x_imm;
 				fetch_addr <= (pc + x_imm) >> 2;
 				$display("JAL branching to pc = %x", pc + x_imm);
-			end else if (x_opcode == 5'b11001) begin // JALR
+			end else if (x_opcode == `OP_JALR) begin
 				pc <= alu_out + x_imm;
 				fetch_addr <= (alu_out + x_imm) >> 2;
 				$display("JALR branching to pc = %x", alu_out + x_imm);
