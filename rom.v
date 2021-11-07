@@ -1,17 +1,16 @@
 module rom(
-	input clk,
-	input rst,
-	input [6:0] addr,
-	output [31:0] data_o
-);
+	   input 	 clk,
+	   input 	 rst,
+	   input [6:0] 	 addr,
+	   output [31:0] data_o
+	   );
 
 reg [31:0] memory [0:127];
 reg [31:0] data_r;
 
 assign data_o = data_r;
 
-initial
-begin
+initial begin
 	$readmemh("romcode.hex", memory);
 end
 
