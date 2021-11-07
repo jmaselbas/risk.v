@@ -13,7 +13,7 @@ module cpu_test;
       clk = 1'b0;
       #4;
       rst = 1'b0;
-      #100;
+      #400;
       $finish;
    end
    always begin
