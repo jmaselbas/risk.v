@@ -76,7 +76,7 @@ module cpu(rst, clk);
 	      d_alu_op <= alu_op;
               d_imm_reg <= d_imm;
               reg1_val <= d_reg1;
-	      wren <= 1;
+	      wren <= d_rd != 0;
 	      state <= WRITE_BACK;
 	   end
 	   WRITE_BACK: begin
