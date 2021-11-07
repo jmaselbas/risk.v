@@ -13,6 +13,7 @@ wire [31:0]  f_insn;
 /* decode internal wire */
 wire [4:0]  opcode_w;
 wire [3:0]  alu_op_w;
+wire [2:0]  bcu_op_w;
 wire        invalid_w;
 wire [4:0]  rs1_w, rs2_w, rd_w;
 wire [31:0] reg1_w, reg2_w, imm_w;
@@ -20,6 +21,7 @@ wire [31:0] reg1_w, reg2_w, imm_w;
 reg [4:0]   d_opcode;
 reg [31:0]  d_op_val1, d_op_val2;
 reg [3:0]   d_alu_op;
+reg [2:0]   d_bcu_op;
 reg [4:0]   d_rd;
 reg [31:0]  d_imm;
 
@@ -31,20 +33,17 @@ reg [31:0]  x_imm;
 wire [31:0] rf_in;
 reg [31:0]  wb_val;
 wire branch_taken;
-wire [2:0] funct3;
-
-assign funct3 = alu_op_w[2:0];
 
 parameter FETCH_INSN = 0;
 parameter DECODE_AND_REGFILE_FETCH = 1;
 parameter EXECUTE = 2;
 parameter WRITE_BACK = 3;
 
-decode decode(f_insn, opcode_w, alu_op_w, invalid, rd_w, rs1_w, rs2_w, imm_w);
+decode decode(f_insn, opcode_w, alu_op_w, bcu_op_w, invalid, rd_w, rs1_w, rs2_w, imm_w);
 regfile regfile(rst, clk, wren, rden, x_rd, rs1_w, rs2_w, rf_in, reg1_w, reg2_w);
 alu alu(rst, clk, d_alu_op, d_op_val1, d_op_val2, alu_out);
 rom rom(clk, rst, fetch_addr, f_insn);
-bcu bcu(rst, clk, funct3, reg1_w, reg2_w, branch_taken);
+bcu bcu(rst, clk, d_bcu_op, d_op_val1, d_op_val2, branch_taken);
 
 /* we write back alu_out in RF in the general case
  Except when:
@@ -88,6 +87,7 @@ always @(posedge clk) begin
 			d_rd <= rd_w;
 			d_imm <= imm_w;
 			d_alu_op <= alu_op_w;
+			d_bcu_op <= bcu_op_w;
 			d_op_val1 <= reg1_w;
 			if (opcode_w == `OP_ALUIMM) begin
 				d_op_val2 <= imm_w;
@@ -115,7 +115,7 @@ always @(posedge clk) begin
 				pc <= alu_out + x_imm;
 				fetch_addr <= (alu_out + x_imm) >> 2;
 				$display("JALR branching to pc = %x", alu_out + x_imm);
-			end else if (x_opcode == `OP_BRANCH) begin // BEQ, BNE, BLT, BGE, BLTU, BGEU
+			end else if (x_opcode == `OP_BRANCH) begin
 				if (branch_taken) begin
 					pc <= pc + x_imm;
 					fetch_addr <= (pc + x_imm) >> 2;

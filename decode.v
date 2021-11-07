@@ -1,9 +1,10 @@
  `include "rv32i.vh"
 
-module decode(insn, opcode, alu_op, invalid, rd, rs1, rs2, imm);
+module decode(insn, opcode, alu_op, bcu_op, invalid, rd, rs1, rs2, imm);
 input [31:0] insn;
 output [4:0] opcode;
 output [3:0] alu_op;
+output [2:0] bcu_op;
 output 	     invalid;
 output [4:0] rd;
 output [4:0] rs1;
@@ -21,6 +22,7 @@ assign funct7 = insn[31:25];
 assign alu_op = (opcode == `OP_ALU)    ? {funct7[5],funct3} :
 		(opcode == `OP_ALUIMM) ? {1'b0,funct3} :
 		{1'b0,funct3};
+assign bcu_op = funct3;
 
 assign rd = insn[11:7];
 assign rs1 = insn[19:15];
