@@ -29,3 +29,5 @@
 `define COMP_BGE  3'b101
 `define COMP_BLTU 3'b110
 `define COMP_BGEU 3'b111
+`define BCU_DISABLE 3'b010
+`define BCU_TAKEN   3'b011

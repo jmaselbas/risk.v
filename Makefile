@@ -9,8 +9,8 @@ all: cpu.vcd
 cpu.vcd: a.out
 	./a.out
 
-a.out: romcode.hex cpu.v cpu_t.v regfile.v rom.v alu.v decode.v bcu.v
-	iverilog cpu.v cpu_t.v regfile.v rom.v alu.v decode.v bcu.v
+a.out: romcode.hex cpu.v cpu_t.v regfile.v rom.v decode.v
+	iverilog cpu.v cpu_t.v regfile.v rom.v decode.v
 
 %.elf: %.s
 %.elf: %.S

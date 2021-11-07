@@ -21,18 +21,16 @@ wire [31:0] reg1_w, reg2_w, imm_w;
 reg [4:0]   d_opcode;
 reg [31:0]  d_op_val1, d_op_val2;
 reg [3:0]   d_alu_op;
+reg [31:0]  d_bcu_val1, d_bcu_val2;
 reg [2:0]   d_bcu_op;
 reg [4:0]   d_rd;
-reg [31:0]  d_imm;
 
 /* execute output */
-wire [31:0] alu_out;
-reg [4:0]   x_opcode;
+reg [31:0]  x_out, x_npc;
 reg [4:0]   x_rd;
-reg [31:0]  x_imm;
+reg 	    x_taken, x_link;
+
 wire [31:0] rf_in;
-reg [31:0]  wb_val;
-wire branch_taken;
 
 parameter FETCH_INSN = 0;
 parameter DECODE_AND_REGFILE_FETCH = 1;
@@ -41,17 +39,12 @@ parameter WRITE_BACK = 3;
 
 decode decode(f_insn, opcode_w, alu_op_w, bcu_op_w, invalid, rd_w, rs1_w, rs2_w, imm_w);
 regfile regfile(rst, clk, wren, rden, x_rd, rs1_w, rs2_w, rf_in, reg1_w, reg2_w);
-alu alu(rst, clk, d_alu_op, d_op_val1, d_op_val2, alu_out);
 rom rom(clk, rst, fetch_addr, f_insn);
-bcu bcu(rst, clk, d_bcu_op, d_op_val1, d_op_val2, branch_taken);
 
-/* we write back alu_out in RF in the general case
- Except when:
-  * executing JAL or JALR => we write pc + 4
-  * executing AUIPC       => we write pc + imm
+/* write back the execution out value (x_out) in the register file except
+ * for link instructions (JAL,JALR) where next pc (x_npc) is written.
  */
-assign rf_in = (x_opcode == `OP_JAL || x_opcode == `OP_JALR) ? pc + 4 :
-	       alu_out;
+assign rf_in = (x_link) ? x_npc : x_out;
 
 reg [2:0]   state;
 always @(posedge clk) begin
@@ -66,12 +59,9 @@ always @(posedge clk) begin
 		d_op_val2 <= 0;
 		d_alu_op <= 0;
 		d_rd <= 0;
-		d_imm <= 0;
-		d_opcode <= 0;
-		d_alu_op <= 0;
-		x_opcode <= 0;
 		x_rd <= 0;
-		x_imm <= 0;
+		x_taken <= 0;
+		x_link <= 0;
 	end else begin
 		case (state)
 		FETCH_INSN: begin
@@ -83,65 +73,88 @@ always @(posedge clk) begin
 		/* {f_insn} */
 		DECODE_AND_REGFILE_FETCH: begin
 			d_opcode <= opcode_w;
-			d_rd <= rd_w;
-			d_imm <= imm_w;
 			if (opcode_w == `OP_ALUIMM) begin
+				d_bcu_op <= `BCU_DISABLE;
 				d_alu_op <= alu_op_w;
 				d_op_val1 <= reg1_w;
 				d_op_val2 <= imm_w;
+				d_rd <= rd_w;
 			end else if (opcode_w == `OP_ALU) begin
+				d_bcu_op <= `BCU_DISABLE;
 				d_alu_op <= alu_op_w;
 				d_op_val1 <= reg1_w;
 				d_op_val2 <= reg2_w;
+				d_rd <= rd_w;
 			end else if (opcode_w == `OP_JAL) begin
+				d_bcu_op <= `BCU_TAKEN;
 				d_alu_op <= `ALU_ADD;
 				d_op_val1 <= pc;
 				d_op_val2 <= imm_w;
+				d_rd <= rd_w;
 			end else if (opcode_w == `OP_JALR) begin
+				d_bcu_op <= `BCU_TAKEN;
 				d_alu_op <= `ALU_ADD;
 				d_op_val1 <= reg1_w;
 				d_op_val2 <= imm_w;
+				d_rd <= rd_w;
 			end else if (opcode_w == `OP_AUIPC) begin
+				d_bcu_op <= `BCU_DISABLE;
 				d_alu_op <= `ALU_ADD;
 				d_op_val1 <= pc;
 				d_op_val2 <= imm_w;
+				d_rd <= rd_w;
 			end else if (opcode_w == `OP_BRANCH) begin
 				d_bcu_op <= bcu_op_w;
-				d_op_val1 <= reg1_w;
-				d_op_val2 <= reg2_w;
+				d_bcu_val1 <= reg1_w;
+				d_bcu_val2 <= reg2_w;
+				d_alu_op <= `ALU_ADD;
+				d_op_val1 <= pc;
+				d_op_val2 <= imm_w;
+				d_rd <= 0; /* do not write back */
 			end
 			rden <= 0;
 			state <= EXECUTE;
 		end
-		/* {d_opcode, d_rd, d_alu_op, d_op_val1, d_op_val2} */
+		/* {d_opcode, d_rd, d_alu_op, d_op_val1, d_op_val2, d_bcu_op, d_bcu_val1, d_bcu_val2} */
 		EXECUTE: begin
-			x_opcode <= d_opcode;
+			case (d_bcu_op)
+			`COMP_BEQ:	x_taken <= d_bcu_val1 == d_bcu_val2;
+			`COMP_BNE:	x_taken <= d_bcu_val1 != d_bcu_val2;
+			`COMP_BLT:	x_taken <= $signed(d_bcu_val1) < $signed(d_bcu_val2);
+			`COMP_BGE:	x_taken <= $signed(d_bcu_val1) > $signed(d_bcu_val2);
+			`COMP_BLTU:	x_taken <= d_bcu_val1 < d_bcu_val2;
+			`COMP_BGEU:	x_taken <= d_bcu_val1 > d_bcu_val2;
+			`BCU_TAKEN:	x_taken <= 1;
+			default:	x_taken <= 0;
+			endcase
+			case (d_alu_op)
+			`ALU_ADD:	x_out <= d_op_val1 + d_op_val2;
+			`ALU_SUB:	x_out <= d_op_val1 - d_op_val2;
+			`ALU_SLL:	x_out <= d_op_val1 << d_op_val2[4:0];
+			`ALU_SLT:	x_out <= $signed(d_op_val1) < $signed(d_op_val2);
+			`ALU_SLTU:	x_out <= d_op_val1 < d_op_val2;
+			`ALU_XOR:	x_out <= d_op_val1 ^ d_op_val2;
+			`ALU_SRL:	x_out <= d_op_val1 >> d_op_val2[4:0];
+			`ALU_SRA:	x_out <= d_op_val1 >>> d_op_val2[4:0];
+			`ALU_OR:	x_out <= d_op_val1 | d_op_val2;
+			`ALU_AND:	x_out <= d_op_val1 & d_op_val2;
+			default:	x_out <= 0;
+			endcase
+			x_link <= d_opcode == `OP_JAL || d_opcode == `OP_JALR;
+			x_npc <= pc + 4;
 			x_rd <= d_rd;
-			x_imm <= d_imm;
 			wren <= d_rd != 0;
 			state <= WRITE_BACK;
 		end
-		/* {x_opcode, x_rd, alu_out} */
+		/* {x_npc, x_rd, x_out, x_link, x_taken } */
 		WRITE_BACK: begin
-			if (x_opcode == `OP_JAL || x_opcode == `OP_JALR) begin
-				pc <= alu_out;
-				fetch_addr <= alu_out >> 2;
-				$display("JAL%s branching to pc = %x",
-					 (x_opcode == `OP_JALR) ? "R" : " ",
-					 alu_out);
-			end else if (x_opcode == `OP_BRANCH) begin
-				if (branch_taken) begin
-					pc <= pc + x_imm;
-					fetch_addr <= (pc + x_imm) >> 2;
-				$display("Branch taken pc <= %x", pc + x_imm);
-				end else begin
-					pc <= pc + 4;
-					fetch_addr <= (pc + 4) >> 2;
-				$display("Branch non-taken");
-				end
+			if (x_taken) begin
+				$display("branch taken to %x", x_out);
+				pc <= x_out;
+				fetch_addr <= x_out >> 2;
 			end else begin
-				pc <= pc + 4;
-				fetch_addr <= (pc + 4) >> 2;
+				pc <= x_npc;
+				fetch_addr <= x_npc >> 2;
 			end
 			wren <= 0;
 			state <= FETCH_INSN;
