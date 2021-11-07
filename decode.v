@@ -13,8 +13,14 @@ output [31:0] imm;
 assign invalid = insn[1:0] != 2'b11;
 assign opcode = insn[6:2];
 
-assign alu_op = (opcode == 5'b01100) ? {insn[30],insn[14:12]}:
-		{1'b0,insn[14:12]};
+wire [2:0]    funct3;
+wire [6:0]    funct7;
+assign funct3 = insn[14:12];
+assign funct7 = insn[31:25];
+
+assign alu_op = (opcode == `OP_ALU)    ? {funct7[5],funct3} :
+		(opcode == `OP_ALUIMM) ? {1'b0,funct3} :
+		{1'b0,funct3};
 
 assign rd = insn[11:7];
 assign rs1 = insn[19:15];
