@@ -15,6 +15,7 @@ module regfile(rst, clk, wr, rd, selwr, selrd1, selrd2, in, out1, out2);
 	 end
       end else begin
 	 if (wr) begin
+            $display("storing %x in x%d\n", in, selwr);
 	    rfile[selwr] <= in;
 	 end
       end
