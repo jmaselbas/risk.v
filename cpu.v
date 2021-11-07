@@ -51,7 +51,6 @@ bcu bcu(rst, clk, d_bcu_op, d_op_val1, d_op_val2, branch_taken);
   * executing AUIPC       => we write pc + imm
  */
 assign rf_in = (x_opcode == `OP_JAL || x_opcode == `OP_JALR) ? pc + 4 :
-	       (x_opcode == `OP_AUIPC) ? pc + $signed(x_imm) :
 	       alu_out;
 
 reg [2:0]   state;
@@ -86,12 +85,29 @@ always @(posedge clk) begin
 			d_opcode <= opcode_w;
 			d_rd <= rd_w;
 			d_imm <= imm_w;
-			d_alu_op <= alu_op_w;
-			d_bcu_op <= bcu_op_w;
-			d_op_val1 <= reg1_w;
 			if (opcode_w == `OP_ALUIMM) begin
+				d_alu_op <= alu_op_w;
+				d_op_val1 <= reg1_w;
 				d_op_val2 <= imm_w;
-			end else begin
+			end else if (opcode_w == `OP_ALU) begin
+				d_alu_op <= alu_op_w;
+				d_op_val1 <= reg1_w;
+				d_op_val2 <= reg2_w;
+			end else if (opcode_w == `OP_JAL) begin
+				d_alu_op <= `ALU_ADD;
+				d_op_val1 <= pc;
+				d_op_val2 <= imm_w;
+			end else if (opcode_w == `OP_JALR) begin
+				d_alu_op <= `ALU_ADD;
+				d_op_val1 <= reg1_w;
+				d_op_val2 <= imm_w;
+			end else if (opcode_w == `OP_AUIPC) begin
+				d_alu_op <= `ALU_ADD;
+				d_op_val1 <= pc;
+				d_op_val2 <= imm_w;
+			end else if (opcode_w == `OP_BRANCH) begin
+				d_bcu_op <= bcu_op_w;
+				d_op_val1 <= reg1_w;
 				d_op_val2 <= reg2_w;
 			end
 			rden <= 0;
@@ -107,14 +123,12 @@ always @(posedge clk) begin
 		end
 		/* {x_opcode, x_rd, alu_out} */
 		WRITE_BACK: begin
-			if (x_opcode == `OP_JAL) begin
-				pc <= pc + x_imm;
-				fetch_addr <= (pc + x_imm) >> 2;
-				$display("JAL branching to pc = %x", pc + x_imm);
-			end else if (x_opcode == `OP_JALR) begin
-				pc <= alu_out + x_imm;
-				fetch_addr <= (alu_out + x_imm) >> 2;
-				$display("JALR branching to pc = %x", alu_out + x_imm);
+			if (x_opcode == `OP_JAL || x_opcode == `OP_JALR) begin
+				pc <= alu_out;
+				fetch_addr <= alu_out >> 2;
+				$display("JAL%s branching to pc = %x",
+					 (x_opcode == `OP_JALR) ? "R" : " ",
+					 alu_out);
 			end else if (x_opcode == `OP_BRANCH) begin
 				if (branch_taken) begin
 					pc <= pc + x_imm;
