@@ -4,7 +4,13 @@ CC=$(CROSS_COMPILE)gcc
 OBJCOPY=$(CROSS_COMPILE)objcopy
 endif
 
-all: romcode.hex
+all: cpu.vcd
+
+cpu.vcd: a.out
+	./a.out
+
+a.out: romcode.hex cpu.v cpu_t.v regfile.v rom.v alu.v decode.v
+	iverilog cpu.v cpu_t.v regfile.v rom.v alu.v decode.v
 
 %.elf: %.s
 %.elf: %.S
@@ -17,6 +23,7 @@ all: romcode.hex
 	xxd -c4 $< | sed 's/[0-9a-fA-F]\+: //; s/ //; s/\(........\).*/\1/' >$@
 
 clean:
-	rm -f romcode.hex romcode.elf romcode.bin
+	rm -f *.elf *.bin *.hex a.out
 
 .PHONY: all clean
+.SECONDARY: romcode.elf romcode.bin
