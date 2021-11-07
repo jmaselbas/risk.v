@@ -21,3 +21,11 @@
 `define ALU_SRA  4'b1101
 `define ALU_OR   4'b0110
 `define ALU_AND  4'b0111
+
+/* encoding for comparison from funct3 */
+`define COMP_BEQ  3'b000
+`define COMP_BNE  3'b001
+`define COMP_BLT  3'b100
+`define COMP_BGE  3'b101
+`define COMP_BLTU 3'b110
+`define COMP_BGEU 3'b111
