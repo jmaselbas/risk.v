@@ -45,9 +45,11 @@ assign alu_in1 = d_reg1;
 assign alu_in2 = (opcode == 5'b00100) ? d_imm : d_reg2;
 
 /* we write back alu_out in RF in the general case
- Except when executing JAL or JALR
+ Except when:
+  * executing JAL or JALR => we write pc + 4
+  * executing AUIPC       => we write pc + imm
  */
-assign rf_in = (d_opcode == 5'b11011 || d_opcode == 5'b11001) ? pc + 4 : alu_out;
+assign rf_in = (d_opcode == 5'b11011 || d_opcode == 5'b11001) ? pc + 4 : (d_opcode == 5'b00101) ? pc + $signed(d_imm_reg) : alu_out;
 
 reg [2:0]   state;
 always @(posedge clk) begin
@@ -80,11 +82,11 @@ always @(posedge clk) begin
 			state <= WRITE_BACK;
 		end
 		WRITE_BACK: begin
-			if (d_opcode == 5'b11011) begin
+			if (d_opcode == 5'b11011) begin // JAL
 				pc <= pc + d_imm_reg;
 				fetch_addr <= (pc + d_imm_reg) >> 2;
 				$display("JAL branching to pc = %x\n", pc + d_imm_reg);
-			end else if (d_opcode == 5'b11001) begin
+			end else if (d_opcode == 5'b11001) begin // JALR
 				pc <= reg1_val + d_imm_reg;
 				fetch_addr <= (reg1_val + d_imm_reg) >> 2;
 				$display("JALR branching to pc = %x\n", reg1_val + d_imm_reg);
