@@ -50,18 +50,23 @@ wire lsu_wren;
 assign lsu_ram_addr = x_out[8:2];
 assign lsu_wren = 1'b0;
 
-parameter FETCH_INSN = 0;
-parameter DECODE_AND_REGFILE_FETCH = 1;
-parameter EXECUTE = 2;
-parameter MEMORY = 3;
-parameter MEMORY_LOAD = 4;
-parameter WRITE_BACK = 5;
-
 decode decode(f_insn, opcode_w, alu_op_w, bcu_op_w, lsu_op_w, invalid, rd_w, rs1_w, rs2_w, imm_w);
 rom rom(clk, rst, fetch_addr, f_insn);
 ram ram(clk, rst, lsu_wren, lsu_ram_addr, lsu_in, lsu_out);
 
-reg [2:0]   state;
+reg [5:0]   state;
+wire 	    f_en, d_en, x_en, m_en, w_en;
+assign f_en = state[0];
+assign d_en = state[1];
+assign x_en = state[2];
+assign m_en = state[3];
+assign w_en = state[4];
+parameter FETCH_INSN = 1 << 0;
+parameter DECODE_AND_REGFILE_FETCH = 1 << 1;
+parameter EXECUTE = 1 << 2;
+parameter MEMORY = 1 << 3;
+parameter WRITE_BACK = 1 << 4;
+
 integer     i;
 
 always @(posedge clk) begin
@@ -79,14 +84,13 @@ always @(posedge clk) begin
 		x_link <= 0;
 		lsu_in <= 0;
 		for (i = 0; i < 32; i = i + 1) regfile[i] <= 0;
-	end else begin
-		case (state)
-		FETCH_INSN: begin
+	end else begin // if (rst)
+		state <= (state != WRITE_BACK) ? state << 1 : FETCH_INSN;
+		if (f_en) begin
 			$display("fetching pc = %x", pc);
-			state <= DECODE_AND_REGFILE_FETCH;
 		end
 		/* {f_insn} */
-		DECODE_AND_REGFILE_FETCH: begin
+		if (d_en) begin
 			d_opcode <= opcode_w;
 			if (opcode_w == `OP_ALUIMM) begin
 				d_bcu_op <= `BCU_DISABLE;
@@ -142,10 +146,9 @@ always @(posedge clk) begin
 				d_bcu_val2 <= reg2_w; /* store value */
 				d_rd <= 0; /* do not write back */
 			end
-			state <= EXECUTE;
 		end
 		/* {d_opcode, d_rd, d_alu_op, d_op_val1, d_op_val2, d_bcu_op, d_bcu_val1, d_bcu_val2} */
-		EXECUTE: begin
+		if (x_en) begin
 			case (d_bcu_op)
 			`COMP_BEQ:	x_taken <= d_bcu_val1 == d_bcu_val2;
 			`COMP_BNE:	x_taken <= d_bcu_val1 != d_bcu_val2;
@@ -176,10 +179,9 @@ always @(posedge clk) begin
 			x_store <= d_opcode == `OP_STORE;
 			x_npc <= pc + 4;
 			x_rd <= d_rd;
-			state <= MEMORY;
 		end
 		/* {x_npc, x_rd, x_out, x_link, x_taken, x_load, x_store} */
-		MEMORY: begin
+		if (m_en) begin
 			m_npc <= x_npc;
 			m_rd <= x_rd;
 			m_link <= x_link;
@@ -187,10 +189,9 @@ always @(posedge clk) begin
 			m_load <= x_load;
 			m_lsu_op <= x_lsu_op;
 			m_out <= x_out;
-			state <= WRITE_BACK;
 		end
 		/* {m_npc, m_rd, m_out, m_link, m_taken, m_load, m_lsu_op, m_out} */
-		WRITE_BACK: begin
+		if (w_en) begin
 			if (m_rd != 0 && x_load) begin
 				$display("load @%x: %x", m_out, lsu_out);
 				case (m_lsu_op)
@@ -212,9 +213,7 @@ always @(posedge clk) begin
 				pc <= x_npc;
 				fetch_addr <= m_npc >> 2;
 			end
-			state <= FETCH_INSN;
 		end
-		endcase
 	end
 end
 endmodule
