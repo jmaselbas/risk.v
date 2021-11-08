@@ -3,7 +3,7 @@
 module cpu(rst, clk);
 input rst, clk;
 
-reg   rden, wren;
+reg [31:0] regfile [0:31];
 reg [31:0] pc;
 
 /* fetch output */
@@ -18,6 +18,8 @@ wire [2:0]  lsu_op_w;
 wire        invalid_w;
 wire [4:0]  rs1_w, rs2_w, rd_w;
 wire [31:0] reg1_w, reg2_w, imm_w;
+assign reg1_w = regfile[rs1_w];
+assign reg2_w = regfile[rs2_w];
 /* decode output values */
 reg [4:0]   d_opcode;
 reg [31:0]  d_op_val1, d_op_val2;
@@ -39,8 +41,6 @@ reg [31:0]  m_out, m_npc;
 reg [4:0]   m_rd;
 reg         m_taken, m_link;
 
-wire [31:0] rf_in;
-
 wire [31:0] lsu_out;
 reg [31:0] lsu_in;
 wire [6:0]  lsu_ram_addr;
@@ -57,20 +57,14 @@ parameter MEMORY_LOAD = 4;
 parameter WRITE_BACK = 5;
 
 decode decode(f_insn, opcode_w, alu_op_w, bcu_op_w, lsu_op_w, invalid, rd_w, rs1_w, rs2_w, imm_w);
-regfile regfile(rst, clk, wren, rden, m_rd, rs1_w, rs2_w, rf_in, reg1_w, reg2_w);
 rom rom(clk, rst, fetch_addr, f_insn);
 ram ram(clk, rst, lsu_wren, lsu_ram_addr, lsu_in, lsu_out);
 
-/* write back the memory out value (m_out) in the register file except
- * for link instructions (JAL,JALR) where next pc (m_npc) is written.
- */
-assign rf_in = (m_link) ? m_npc : m_out;
-
 reg [2:0]   state;
+integer     i;
+
 always @(posedge clk) begin
 	if (rst) begin
-		rden <= 0;
-		wren <= 0;
 		state <= FETCH_INSN;
 		pc <= 0;
 		fetch_addr <= 0;
@@ -83,11 +77,10 @@ always @(posedge clk) begin
 		x_taken <= 0;
 		x_link <= 0;
 		lsu_in <= 0;
+		for (i = 0; i < 32; i = i + 1) regfile[i] <= 0;
 	end else begin
 		case (state)
 		FETCH_INSN: begin
-			wren <= 0;
-			rden <= 1;
 			$display("fetching pc = %x", pc);
 			state <= DECODE_AND_REGFILE_FETCH;
 		end
@@ -148,7 +141,6 @@ always @(posedge clk) begin
 				d_bcu_val2 <= reg2_w; /* store value */
 				d_rd <= 0; /* do not write back */
 			end
-			rden <= 0;
 			state <= EXECUTE;
 		end
 		/* {d_opcode, d_rd, d_alu_op, d_op_val1, d_op_val2, d_bcu_op, d_bcu_val1, d_bcu_val2} */
@@ -192,7 +184,6 @@ always @(posedge clk) begin
 			m_link <= x_link;
 			m_taken <= x_taken;
 			m_out <= x_out;
-			wren <= x_rd != 0;
 			if (x_load) begin
 				state <= MEMORY_LOAD;
 			end else begin
@@ -217,6 +208,9 @@ always @(posedge clk) begin
 		end
 		/* {m_npc, m_rd, m_out, m_link, m_taken, m_out} */
 		WRITE_BACK: begin
+			if (m_rd != 0) begin
+				regfile[m_rd] <= (m_link) ? m_npc : m_out;
+			end
 			if (m_taken) begin
 				$display("branch taken to %x", m_out);
 				pc <= m_out;
@@ -225,7 +219,6 @@ always @(posedge clk) begin
 				pc <= x_npc;
 				fetch_addr <= m_npc >> 2;
 			end
-			wren <= 0;
 			state <= FETCH_INSN;
 		end
 		endcase
