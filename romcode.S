@@ -13,5 +13,11 @@ loop:
 done:
 	j _start
 end:
+	li x8, -1
+	srai x9, x8, 16 /* SRA do sign extension */
+	bne x9, x8, fail /* x9 must equal x8 */
 	auipc x8, 4
 	ret
+fail:
+	ebreak
+	j fail

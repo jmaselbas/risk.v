@@ -144,6 +144,18 @@ always @(posedge clk) begin
 				d_op_val2 <= imm_w;
 				d_bcu_val2 <= reg2_w; /* store value */
 				d_rd <= 0; /* do not write back */
+			end else if (opcode_w == `OP_MISC) begin
+				/* there is only fence in OP_MISC */
+				/* insert a nop instruction */
+				d_bcu_op <= `BCU_DISABLE;
+				d_alu_op <= `ALU_ADD;
+				d_rd <= 0; /* do not write back */
+			end else if (opcode_w == `OP_SYSTEM) begin
+				if (f_insn == 32'b000000000001_00000_000_00000_1110011) begin
+					$display("EBREAK taken pc@%x", pc);
+					$finish;
+				end
+
 			end
 		end
 		/* {d_opcode, d_rd, d_alu_op, d_op_val1, d_op_val2, d_bcu_op, d_bcu_val1, d_bcu_val2} */
