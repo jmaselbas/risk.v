@@ -6,10 +6,12 @@ _start:
 loop:
 	beq x7, x8, done
 	lw x6, 0(x7)
+	sw x6, 64(x7)
+	lw x6, 64(x7)
 	addi x7, x7, 4
 	j loop
 done:
 	j _start
 end:
-	auipc x8, 0
+	auipc x8, 4
 	ret

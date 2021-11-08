@@ -6,7 +6,7 @@
 `define OP_JALR   5'b11001
 `define OP_BRANCH 5'b11000
 `define OP_LOAD   5'b00000
-`define OP_STORE  5'b10000
+`define OP_STORE  5'b01000
 `define OP_MISC   5'b00011
 `define OP_SYSTEM 5'b11100
 
