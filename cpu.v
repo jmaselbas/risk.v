@@ -42,8 +42,12 @@ reg         m_taken, m_link;
 wire [31:0] rf_in;
 
 wire [31:0] lsu_out;
+reg [31:0] lsu_in;
 wire [6:0]  lsu_ram_addr;
+wire lsu_wren;
+
 assign lsu_ram_addr = x_out[8:2];
+assign lsu_wren = 1'b0;
 
 parameter FETCH_INSN = 0;
 parameter DECODE_AND_REGFILE_FETCH = 1;
@@ -55,7 +59,7 @@ parameter WRITE_BACK = 5;
 decode decode(f_insn, opcode_w, alu_op_w, bcu_op_w, lsu_op_w, invalid, rd_w, rs1_w, rs2_w, imm_w);
 regfile regfile(rst, clk, wren, rden, m_rd, rs1_w, rs2_w, rf_in, reg1_w, reg2_w);
 rom rom(clk, rst, fetch_addr, f_insn);
-rom ram(clk, rst, lsu_ram_addr, lsu_out);
+ram ram(clk, rst, lsu_wren, lsu_ram_addr, lsu_in, lsu_out);
 
 /* write back the memory out value (m_out) in the register file except
  * for link instructions (JAL,JALR) where next pc (m_npc) is written.
@@ -78,6 +82,7 @@ always @(posedge clk) begin
 		x_rd <= 0;
 		x_taken <= 0;
 		x_link <= 0;
+		lsu_in <= 0;
 	end else begin
 		case (state)
 		FETCH_INSN: begin
