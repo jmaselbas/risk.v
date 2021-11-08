@@ -92,7 +92,10 @@ always @(posedge clk) begin
 			d_opcode <= opcode_w;
 			if (opcode_w == `OP_ALUIMM) begin
 				d_bcu_op <= `BCU_DISABLE;
-				d_alu_op <= {1'b0,funct3_w};
+				/* SRL/SRA both uses the same funct3 */
+				d_alu_op <= (funct3_w == `ALU_SRL) ?
+					    {funct7_w[5],funct3_w} :
+					    {1'b0,funct3_w};
 				d_op_val1 <= reg1_w;
 				d_op_val2 <= imm_w;
 				d_rd <= rd_w;
@@ -177,7 +180,7 @@ always @(posedge clk) begin
 			`ALU_SLTU:	x_out <= d_op_val1 < d_op_val2;
 			`ALU_XOR:	x_out <= d_op_val1 ^ d_op_val2;
 			`ALU_SRL:	x_out <= d_op_val1 >> d_op_val2[4:0];
-			`ALU_SRA:	x_out <= d_op_val1 >>> d_op_val2[4:0];
+			`ALU_SRA:	x_out <= $signed(d_op_val1) >>> d_op_val2[4:0];
 			`ALU_OR:	x_out <= d_op_val1 | d_op_val2;
 			`ALU_AND:	x_out <= d_op_val1 & d_op_val2;
 			default:	x_out <= 0;
