@@ -39,7 +39,8 @@ reg         x_taken, x_link, x_load, x_store;
 /* memory output */
 reg [31:0]  m_out, m_npc;
 reg [4:0]   m_rd;
-reg         m_taken, m_link;
+reg [2:0]   m_lsu_op;
+reg         m_taken, m_link, m_load;
 
 wire [31:0] lsu_out;
 reg [31:0] lsu_in;
@@ -183,32 +184,24 @@ always @(posedge clk) begin
 			m_rd <= x_rd;
 			m_link <= x_link;
 			m_taken <= x_taken;
+			m_load <= x_load;
+			m_lsu_op <= x_lsu_op;
 			m_out <= x_out;
-			if (x_load) begin
-				state <= MEMORY_LOAD;
-			end else begin
-				state <= WRITE_BACK;
-			end
-		end
-		/* need an extra step to wait for lsu_out, I think
-		 * this should be handled by waiting for data_ready
-		 * signal, and keep the pipeline in a frozen state
-		 */
-		MEMORY_LOAD: begin
-			$display("load @%x: %x", x_out, lsu_out);
-			case (x_lsu_op)
-			`LSU_LB:	m_out <= $signed(lsu_out[7:0]);
-			`LSU_LH:	m_out <= $signed(lsu_out[15:0]);
-			`LSU_LW:	m_out <= lsu_out;
-			`LSU_LBU:	m_out <= lsu_out[7:0];
-			`LSU_LHU:	m_out <= lsu_out[15:0];
-			default:	m_out <= 0; /* invalid */
-			endcase
 			state <= WRITE_BACK;
 		end
-		/* {m_npc, m_rd, m_out, m_link, m_taken, m_out} */
+		/* {m_npc, m_rd, m_out, m_link, m_taken, m_load, m_lsu_op, m_out} */
 		WRITE_BACK: begin
-			if (m_rd != 0) begin
+			if (m_rd != 0 && x_load) begin
+				$display("load @%x: %x", m_out, lsu_out);
+				case (m_lsu_op)
+				`LSU_LB:	regfile[m_rd] <= $signed(lsu_out[7:0]);
+				`LSU_LH:	regfile[m_rd] <= $signed(lsu_out[15:0]);
+				`LSU_LW:	regfile[m_rd] <= lsu_out;
+				`LSU_LBU:	regfile[m_rd] <= lsu_out[7:0];
+				`LSU_LHU:	regfile[m_rd] <= lsu_out[15:0];
+				default:	regfile[m_rd] <= 0; /* invalid */
+				endcase
+			end else if (m_rd != 0) begin
 				regfile[m_rd] <= (m_link) ? m_npc : m_out;
 			end
 			if (m_taken) begin
