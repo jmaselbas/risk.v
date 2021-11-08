@@ -12,9 +12,8 @@ wire [31:0]  f_insn;
 
 /* decode internal wire */
 wire [4:0]  opcode_w;
-wire [3:0]  alu_op_w;
-wire [2:0]  bcu_op_w;
-wire [2:0]  lsu_op_w;
+wire [6:0]  funct7_w;
+wire [2:0]  funct3_w;
 wire        invalid_w;
 wire [4:0]  rs1_w, rs2_w, rd_w;
 wire [31:0] reg1_w, reg2_w, imm_w;
@@ -49,7 +48,7 @@ wire lsu_wren;
 assign lsu_ram_addr = x_out[8:2];
 assign lsu_wren = m_en && x_store; /* true during memory state and x_store */
 
-decode decode(f_insn, opcode_w, alu_op_w, bcu_op_w, lsu_op_w, invalid, rd_w, rs1_w, rs2_w, imm_w);
+decode decode(f_insn, opcode_w, funct7_w, funct3_w, invalid, rd_w, rs1_w, rs2_w, imm_w);
 rom rom(clk, rst, fetch_addr, f_insn);
 ram ram(clk, rst, lsu_wren, lsu_ram_addr, x_lsu_val, lsu_out);
 
@@ -93,13 +92,13 @@ always @(posedge clk) begin
 			d_opcode <= opcode_w;
 			if (opcode_w == `OP_ALUIMM) begin
 				d_bcu_op <= `BCU_DISABLE;
-				d_alu_op <= alu_op_w;
+				d_alu_op <= {1'b0,funct3_w};
 				d_op_val1 <= reg1_w;
 				d_op_val2 <= imm_w;
 				d_rd <= rd_w;
 			end else if (opcode_w == `OP_ALU) begin
 				d_bcu_op <= `BCU_DISABLE;
-				d_alu_op <= alu_op_w;
+				d_alu_op <= {funct7_w[5],funct3_w};
 				d_op_val1 <= reg1_w;
 				d_op_val2 <= reg2_w;
 				d_rd <= rd_w;
@@ -122,7 +121,7 @@ always @(posedge clk) begin
 				d_op_val2 <= imm_w;
 				d_rd <= rd_w;
 			end else if (opcode_w == `OP_BRANCH) begin
-				d_bcu_op <= bcu_op_w;
+				d_bcu_op <= funct3_w;
 				d_bcu_val1 <= reg1_w;
 				d_bcu_val2 <= reg2_w;
 				d_alu_op <= `ALU_ADD;
@@ -130,14 +129,14 @@ always @(posedge clk) begin
 				d_op_val2 <= imm_w;
 				d_rd <= 0; /* do not write back */
 			end else if (opcode_w == `OP_LOAD) begin
-				d_lsu_op <= lsu_op_w;
+				d_lsu_op <= funct3_w;
 				d_bcu_op <= `BCU_DISABLE;
 				d_alu_op <= `ALU_ADD;
 				d_op_val1 <= reg1_w;
 				d_op_val2 <= imm_w;
 				d_rd <= rd_w;
 			end else if (opcode_w == `OP_STORE) begin
-				d_lsu_op <= lsu_op_w;
+				d_lsu_op <= funct3_w;
 				d_bcu_op <= `BCU_DISABLE;
 				d_alu_op <= `ALU_ADD;
 				d_op_val1 <= reg1_w;
