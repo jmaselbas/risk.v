@@ -92,12 +92,12 @@ assign reg1_w = regfile[rs1_w];
 assign reg2_w = regfile[rs2_w];
 /* decode output values */
 reg [31:0]  d_addr;
-reg [4:0]   d_opcode;
 reg [31:0]  d_op_val1, d_op_val2;
 reg [3:0]   d_alu_op;
+reg [3:0]   d_funct3; /* used by lsu, bcu */
 reg [31:0]  d_bcu_val1, d_bcu_val2;
-reg [2:0]   d_bcu_op;
-reg [2:0]   d_lsu_op;
+reg         d_bcu_en;
+reg         d_link, d_load, d_store;
 reg [11:0]  d_csr;
 reg         d_csr_rd, d_csr_wr;
 reg [31:0]  d_csr_val;
@@ -123,14 +123,16 @@ wire [31:0] csr_val =
 
 always @(posedge clk) begin if (rst) begin
 	d_addr <= 0;
-	d_opcode <= 0;
 	d_op_val1 <= 0;
 	d_op_val2 <= 0;
 	d_alu_op <= 0;
+	d_funct3 <= 0;
 	d_bcu_val1 <= 0;
 	d_bcu_val2 <= 0;
-	d_bcu_op <= 0;
-	d_lsu_op <= 0;
+	d_bcu_en <= 0;
+	d_link <= 0;
+	d_load <= 0;
+	d_store <= 0;
 	d_csr <= 0;
 	d_csr_rd <= 0;
 	d_csr_wr <= 0;
@@ -138,9 +140,12 @@ always @(posedge clk) begin if (rst) begin
 	d_rd <= 0;
 end else if (d_en) begin
 	d_addr <= f_addr;
-	d_opcode <= opcode_w;
+	d_funct3 <= funct3_w;
+	d_link   <= (opcode_w == `OP_JAL) || (opcode_w == `OP_JALR);
+	d_load   <= (opcode_w == `OP_LOAD);
+	d_store  <= (opcode_w == `OP_STORE);
+	d_bcu_en <= (opcode_w == `OP_BRANCH);
 	if (opcode_w == `OP_ALUIMM) begin
-		d_bcu_op <= `BCU_DISABLE;
 		/* SRL/SRA both uses the same funct3 */
 		d_alu_op <= (funct3_w == `ALU_SRL) ?
 			    {funct7_w[5],funct3_w} :
@@ -149,37 +154,31 @@ end else if (d_en) begin
 		d_op_val2 <= imm_w;
 		d_rd <= rd_w;
 	end else if (opcode_w == `OP_ALU) begin
-		d_bcu_op <= `BCU_DISABLE;
 		d_alu_op <= {funct7_w[5],funct3_w};
 		d_op_val1 <= reg1_w;
 		d_op_val2 <= reg2_w;
 		d_rd <= rd_w;
 	end else if (opcode_w == `OP_JAL) begin
-		d_bcu_op <= `BCU_TAKEN;
 		d_alu_op <= `ALU_ADD;
 		d_op_val1 <= f_addr;
 		d_op_val2 <= imm_w;
 		d_rd <= rd_w;
 	end else if (opcode_w == `OP_JALR) begin
-		d_bcu_op <= `BCU_TAKEN;
 		d_alu_op <= `ALU_ADD;
 		d_op_val1 <= reg1_w;
 		d_op_val2 <= imm_w;
 		d_rd <= rd_w;
 	end else if (opcode_w == `OP_AUIPC) begin
-		d_bcu_op <= `BCU_DISABLE;
 		d_alu_op <= `ALU_ADD;
 		d_op_val1 <= pc;
 		d_op_val2 <= imm_w;
 		d_rd <= rd_w;
 	end else if (opcode_w == `OP_LUI) begin
-		d_bcu_op <= `BCU_DISABLE;
 		d_alu_op <= `ALU_ADD;
 		d_op_val1 <= 0;
 		d_op_val2 <= imm_w;
 		d_rd <= rd_w;
 	end else if (opcode_w == `OP_BRANCH) begin
-		d_bcu_op <= funct3_w;
 		d_bcu_val1 <= reg1_w;
 		d_bcu_val2 <= reg2_w;
 		d_alu_op <= `ALU_ADD;
@@ -187,15 +186,11 @@ end else if (d_en) begin
 		d_op_val2 <= imm_w;
 		d_rd <= 0; /* do not write back */
 	end else if (opcode_w == `OP_LOAD) begin
-		d_lsu_op <= funct3_w;
-		d_bcu_op <= `BCU_DISABLE;
 		d_alu_op <= `ALU_ADD;
 		d_op_val1 <= reg1_w;
 		d_op_val2 <= imm_w;
 		d_rd <= rd_w;
 	end else if (opcode_w == `OP_STORE) begin
-		d_lsu_op <= funct3_w;
-		d_bcu_op <= `BCU_DISABLE;
 		d_alu_op <= `ALU_ADD;
 		d_op_val1 <= reg1_w;
 		d_op_val2 <= imm_w;
@@ -204,7 +199,6 @@ end else if (d_en) begin
 	end else if (opcode_w == `OP_MISC) begin
 		/* there is only fence in OP_MISC */
 		/* insert a nop instruction */
-		d_bcu_op <= `BCU_DISABLE;
 		d_alu_op <= `ALU_ADD;
 		d_rd <= 0; /* do not write back */
 	end
@@ -231,7 +225,6 @@ end else if (d_en) begin
 			    `ALU_OR;
 		d_op_val1 <= (funct3_w[1:0] == `CSR_RW) ? 0 : csr_val;
 		d_op_val2 <= (funct3_w[2]) ? rs1_w : reg1_w;
-		d_bcu_op <= `BCU_DISABLE;
 	end else begin
 		d_csr_rd <= 0;
 		d_csr_wr <= 0;
@@ -264,16 +257,18 @@ always @(posedge clk) begin if (rst) begin
 	x_load <= 0;
 	x_store <= 0;
 end else if (x_en) begin
-	case (d_bcu_op)
-	`COMP_BEQ:	x_taken <= d_bcu_val1 == d_bcu_val2;
-	`COMP_BNE:	x_taken <= d_bcu_val1 != d_bcu_val2;
-	`COMP_BLT:	x_taken <= $signed(d_bcu_val1) < $signed(d_bcu_val2);
-	`COMP_BGE:	x_taken <= $signed(d_bcu_val1) >= $signed(d_bcu_val2);
-	`COMP_BLTU:	x_taken <= d_bcu_val1 < d_bcu_val2;
-	`COMP_BGEU:	x_taken <= d_bcu_val1 >= d_bcu_val2;
-	`BCU_TAKEN:	x_taken <= 1;
-	default:	x_taken <= 0;
-	endcase
+	if (d_bcu_en) begin
+		case (d_funct3)
+		`COMP_BEQ:	x_taken <= d_bcu_val1 == d_bcu_val2;
+		`COMP_BNE:	x_taken <= d_bcu_val1 != d_bcu_val2;
+		`COMP_BLT:	x_taken <= $signed(d_bcu_val1) < $signed(d_bcu_val2);
+		`COMP_BGE:	x_taken <= $signed(d_bcu_val1) >= $signed(d_bcu_val2);
+		`COMP_BLTU:	x_taken <= d_bcu_val1 < d_bcu_val2;
+		`COMP_BGEU:	x_taken <= d_bcu_val1 >= d_bcu_val2;
+		endcase
+	end else begin
+		x_taken <= d_link;
+	end
 	case (d_alu_op)
 	`ALU_ADD:	x_out <= d_op_val1 + d_op_val2;
 	`ALU_SUB:	x_out <= d_op_val1 - d_op_val2;
@@ -288,15 +283,15 @@ end else if (x_en) begin
 	`ALU_ANDN:	x_out <= d_op_val1 & ~d_op_val2;
 	default:	x_out <= 0;
 	endcase
-	x_link <= d_opcode == `OP_JAL || d_opcode == `OP_JALR;
-	x_lsu_op <= d_lsu_op;
-	case (d_lsu_op)
+	x_link <= d_link;
+	x_lsu_op <= d_funct3;
+	case (d_funct3)
 	`LSU_SB:	x_lsu_val <= {4{d_bcu_val2[7:0]}};
 	`LSU_SH:	x_lsu_val <= {2{d_bcu_val2[15:0]}};
 	`LSU_SW:	x_lsu_val <= d_bcu_val2;
 	endcase
-	x_load <= d_opcode == `OP_LOAD;
-	x_store <= d_opcode == `OP_STORE;
+	x_load <= d_load;
+	x_store <= d_store;
 	x_npc <= d_addr + 4;
 	x_rd <= d_rd;
 
