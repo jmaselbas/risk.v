@@ -26,6 +26,7 @@ reg [3:0]   d_alu_op;
 reg [31:0]  d_bcu_val1, d_bcu_val2;
 reg [2:0]   d_bcu_op;
 reg [2:0]   d_lsu_op;
+reg         d_mau_en;
 reg [4:0]   d_rd;
 
 /* execute output */
@@ -159,6 +160,7 @@ always @(posedge clk) begin
 				end
 
 			end
+			d_mau_en <= (opcode_w == `OP_ALU && funct7_w == `F_MULDIV);
 		end
 		/* {d_opcode, d_rd, d_alu_op, d_op_val1, d_op_val2, d_bcu_op, d_bcu_val1, d_bcu_val2} */
 		if (x_en) begin
@@ -172,6 +174,7 @@ always @(posedge clk) begin
 			`BCU_TAKEN:	x_taken <= 1;
 			default:	x_taken <= 0;
 			endcase
+			if (!d_mau_en)
 			case (d_alu_op)
 			`ALU_ADD:	x_out <= d_op_val1 + d_op_val2;
 			`ALU_SUB:	x_out <= d_op_val1 - d_op_val2;
@@ -185,6 +188,21 @@ always @(posedge clk) begin
 			`ALU_AND:	x_out <= d_op_val1 & d_op_val2;
 			default:	x_out <= 0;
 			endcase
+			if (d_mau_en) case (d_alu_op)
+			`MAU_MUL:	x_out <= d_op_val1 * d_op_val2;
+			`MAU_MULH:	x_out <= 0; /* upper 32b, signed*signed */
+			`MAU_MULHSU:	x_out <= 0; /* upper 32b, signed*unsigned */
+			`MAU_MULHU:	x_out <= 0; /* upper 32b, unsigned*unsigned */
+			`MAU_DIV:	x_out <= (d_op_val2 == 0) ? -1 :
+						 d_op_val1 / $signed(d_op_val2);
+			`MAU_DIVU:	x_out <= (d_op_val2 == 0) ? -1 :
+						 d_op_val1 / d_op_val2;
+			`MAU_REM:	x_out <= (d_op_val2 == 0) ? d_op_val1 :
+						 d_op_val1 % $signed(d_op_val2);
+			`MAU_REMU:	x_out <= (d_op_val2 == 0) ? d_op_val1 :
+						 d_op_val1 % d_op_val2;
+			endcase
+
 			x_link <= d_opcode == `OP_JAL || d_opcode == `OP_JALR;
 			x_lsu_op <= d_lsu_op;
 			x_lsu_val <= d_bcu_val2;

@@ -21,6 +21,16 @@
 `define ALU_SRA  4'b1101
 `define ALU_OR   4'b0110
 `define ALU_AND  4'b0111
+/* MAU is selected with funct7[0] == 1 */
+`define F_MULDIV   7'b0000001
+`define MAU_MUL    3'b000
+`define MAU_MULH   3'b001
+`define MAU_MULHSU 3'b010
+`define MAU_MULHU  3'b011
+`define MAU_DIV    3'b100
+`define MAU_DIVU   3'b101
+`define MAU_REM    3'b110
+`define MAU_REMU   3'b111
 
 /* encoding for comparison from funct3 */
 `define COMP_BEQ  3'b000
