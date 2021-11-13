@@ -1,11 +1,25 @@
 `include "rv32i.vh"
-module cpu(input rst, input clk);
-
+module rv32i(
+input         rst,
+input         clk,
+output [31:0] mem_i_addr,
+output        mem_i_rstrb,
+input  [31:0] mem_i_rdata,
+input         mem_i_rbusy,
+output [31:0] mem_d_addr,
+output [31:0] mem_d_wdata,
+output  [3:0] mem_d_wmask,
+output        mem_d_wstrb,
+output        mem_d_rstrb,
+input  [31:0] mem_d_rdata,
+input         mem_d_rbusy,
+input         mem_d_wbusy
+);
 reg [31:0] regfile [0:31];
 reg [31:0] pc;
 
 reg [5:0]   state;
-wire 	    f_en, d_en, x_en, m_en, w_en;
+wire        f_en, d_en, x_en, m_en, w_en;
 assign f_en = state[0];
 assign d_en = state[1];
 assign x_en = state[2];
@@ -18,8 +32,9 @@ parameter MEMORY = 1 << 3;
 parameter WRITE_BACK = 1 << 4;
 
 /* fetch */
-wire [6:0]  fetch_addr;
-assign fetch_addr = pc[8:2];
+assign mem_i_rstrb = 1;
+assign mem_i_addr = pc;
+assign f_insn = mem_i_rdata;
 reg [31:0]  f_addr;
 wire [31:0] f_insn;
 
@@ -150,7 +165,11 @@ always @(posedge clk) begin if (x_en) begin
 	endcase
 	x_link <= d_opcode == `OP_JAL || d_opcode == `OP_JALR;
 	x_lsu_op <= d_lsu_op;
-	x_lsu_val <= d_bcu_val2;
+	case (d_lsu_op)
+	`LSU_SB:	x_lsu_val <= {4{d_bcu_val2[7:0]}};
+	`LSU_SH:	x_lsu_val <= {2{d_bcu_val2[15:0]}};
+	`LSU_SW:	x_lsu_val <= d_bcu_val2;
+	endcase
 	x_load <= d_opcode == `OP_LOAD;
 	x_store <= d_opcode == `OP_STORE;
 	x_npc <= pc + 4;
@@ -163,11 +182,15 @@ reg [4:0]   m_rd;
 reg [2:0]   m_lsu_op;
 reg         m_taken, m_link, m_load;
 wire [31:0] lsu_out;
-wire [6:0]  lsu_ram_addr;
-wire        lsu_wren;
 
-assign lsu_ram_addr = x_out[8:2];
-assign lsu_wren = m_en && x_store; /* true during memory state and x_store */
+assign mem_d_addr = x_out;
+assign mem_d_wdata = x_lsu_val;
+assign mem_d_wmask = (x_lsu_op == `LSU_SB) ? 4'b0001 << x_out[1:0] :
+		     (x_lsu_op == `LSU_SH) ? 4'b0011 << x_out[1] :
+		     4'b1111;
+assign mem_d_wstrb = m_en && x_store;
+assign mem_d_rstrb = m_en && x_load;
+assign lsu_out = mem_d_rdata;
 
 always @(posedge clk) begin if (m_en) begin
 	if (x_store) begin
@@ -205,8 +228,6 @@ always @(posedge clk) begin if (w_en) begin
 end end
 
 decode decode(f_insn, opcode_w, funct7_w, funct3_w, invalid, rd_w, rs1_w, rs2_w, imm_w);
-rom rom(clk, rst, fetch_addr, f_insn);
-ram ram(clk, rst, lsu_wren, lsu_ram_addr, x_lsu_val, lsu_out);
 
 integer i;
 always @(posedge clk) begin
@@ -222,6 +243,8 @@ always @(posedge clk) begin
 		x_taken <= 0;
 		x_link <= 0;
 		x_lsu_val <= 0;
+		x_lsu_op <= 0;
+		x_out <= 0;
 		for (i = 0; i < 32; i = i + 1) regfile[i] <= 0;
 	end else begin
 		state <= (state << 1) | w_en;
