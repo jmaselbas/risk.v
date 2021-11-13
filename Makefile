@@ -1,4 +1,4 @@
-CROSS_COMPILE?=riscv32-buildroot-linux-gnu-
+-include config.mk
 ifneq ($(CROSS_COMPILE),)
 CC=$(CROSS_COMPILE)gcc
 OBJCOPY=$(CROSS_COMPILE)objcopy
