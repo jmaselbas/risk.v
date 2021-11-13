@@ -34,9 +34,10 @@ parameter WRITE_BACK = 1 << 4;
 /* fetch */
 assign mem_i_rstrb = 1;
 assign mem_i_addr = pc;
-assign f_insn = mem_i_rdata;
 reg [31:0]  f_addr;
 wire [31:0] f_insn;
+
+assign f_insn = mem_i_rdata;
 
 always @(posedge clk) begin if (f_en) begin
 	$display("fetching pc = %x", pc);
