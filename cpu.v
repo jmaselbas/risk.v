@@ -97,6 +97,12 @@ always @(posedge clk) begin if (d_en) begin
 		d_op_val1 <= pc;
 		d_op_val2 <= imm_w;
 		d_rd <= rd_w;
+	end else if (opcode_w == `OP_LUI) begin
+		d_bcu_op <= `BCU_DISABLE;
+		d_alu_op <= `ALU_ADD;
+		d_op_val1 <= 0;
+		d_op_val2 <= imm_w;
+		d_rd <= rd_w;
 	end else if (opcode_w == `OP_BRANCH) begin
 		d_bcu_op <= funct3_w;
 		d_bcu_val1 <= reg1_w;
