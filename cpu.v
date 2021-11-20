@@ -189,6 +189,8 @@ reg [4:0]   m_rd;
 reg [2:0]   m_lsu_op;
 reg         m_taken, m_link, m_load;
 wire [31:0] lsu_out;
+wire [7:0] lsu_out_byte;
+wire [15:0] lsu_out_half;
 
 assign mem_d_addr = x_out;
 assign mem_d_wdata = x_lsu_val;
@@ -198,6 +200,12 @@ assign mem_d_wmask = (x_lsu_op == `LSU_SB) ? 4'b0001 << x_out[1:0] :
 assign mem_d_wstrb = m_en && x_store;
 assign mem_d_rstrb = m_en && x_load;
 assign lsu_out = mem_d_rdata;
+assign lsu_out_byte = (mem_d_addr[2:0] == 2'b00) ? lsu_out[7:0] :
+		      (mem_d_addr[2:0] == 2'b01) ? lsu_out[15:8] :
+		      (mem_d_addr[2:0] == 2'b10) ? lsu_out[23:16] :
+		      lsu_out[31:24];
+assign lsu_out_half = mem_d_addr[1] ? lsu_out[31:16] : lsu_out[15:0];
+
 
 always @(posedge clk) begin if (m_en) begin
 	if (x_store) begin
@@ -216,11 +224,11 @@ always @(posedge clk) begin if (w_en) begin
 	if (m_rd != 0 && x_load) begin
 		$display("load  @%x: %x", m_out, lsu_out);
 		case (m_lsu_op)
-		`LSU_LB:	regfile[m_rd] <= $signed(lsu_out[7:0]);
-		`LSU_LH:	regfile[m_rd] <= $signed(lsu_out[15:0]);
+		`LSU_LB:	regfile[m_rd] <= $signed(lsu_out_byte);
+		`LSU_LH:	regfile[m_rd] <= $signed(lsu_out_half);
 		`LSU_LW:	regfile[m_rd] <= lsu_out;
-		`LSU_LBU:	regfile[m_rd] <= lsu_out[7:0];
-		`LSU_LHU:	regfile[m_rd] <= lsu_out[15:0];
+		`LSU_LBU:	regfile[m_rd] <= lsu_out_byte;
+		`LSU_LHU:	regfile[m_rd] <= lsu_out_half;
 		default:	regfile[m_rd] <= 0; /* invalid */
 		endcase
 	end else if (m_rd != 0) begin
