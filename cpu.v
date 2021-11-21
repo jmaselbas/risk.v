@@ -17,6 +17,25 @@ input         mem_d_wbusy
 );
 reg [31:0] regfile [0:31];
 reg [31:0] pc;
+reg [63:0] csr_cycle;
+reg [63:0] csr_timer;
+reg [63:0] csr_instret;
+reg [31:0] csr_mvendorid = 0;
+reg [31:0] csr_marchid;
+reg [31:0] csr_mimpid;
+reg [31:0] csr_mhartid;
+reg [31:0] csr_mstatus;
+reg [31:0] csr_misa;
+reg [31:0] csr_medeleg;
+reg [31:0] csr_mideleg;
+reg [31:0] csr_mie;
+reg [31:0] csr_mtvec;
+reg [31:0] csr_mcounteren;
+reg [31:0] csr_mscratch;
+reg [31:0] csr_mepc;
+reg [31:0] csr_mcause;
+reg [31:0] csr_mtval;
+reg [31:0] csr_mip;
 
 reg [5:0]   state;
 wire        f_en, d_en, x_en, m_en, w_en;
@@ -51,18 +70,43 @@ wire [2:0]  funct3_w;
 wire        invalid_w;
 wire [4:0]  rs1_w, rs2_w, rd_w;
 wire [31:0] reg1_w, reg2_w, imm_w;
+wire [11:0] csr_w;
+assign csr_w = f_insn[31:20];
 assign reg1_w = regfile[rs1_w];
 assign reg2_w = regfile[rs2_w];
 /* decode output values */
+reg [31:0]  d_addr;
 reg [4:0]   d_opcode;
 reg [31:0]  d_op_val1, d_op_val2;
 reg [3:0]   d_alu_op;
 reg [31:0]  d_bcu_val1, d_bcu_val2;
 reg [2:0]   d_bcu_op;
 reg [2:0]   d_lsu_op;
+reg [11:0]  d_csr;
+reg         d_csr_rd, d_csr_wr;
+reg [31:0]  d_csr_val;
 reg [4:0]   d_rd;
 
+wire [31:0] csr_val =
+	    (csr_w == `CSR_RDCYCLE) ? csr_cycle[31:0] :
+	    (csr_w == `CSR_RDCYCLEH) ? csr_cycle[63:32] :
+	    (csr_w == `CSR_RDTIME) ? csr_timer[31:0] :
+	    (csr_w == `CSR_RDTIMEH) ? csr_timer[63:32] :
+	    (csr_w == `CSR_RDINSTRET) ? csr_instret[31:0] :
+	    (csr_w == `CSR_RDINSTRETH) ? csr_instret[63:32] :
+	    (csr_w == `CSR_MVENDORID) ? csr_mvendorid :
+	    (csr_w == `CSR_MARCHID) ? csr_marchid :
+	    (csr_w == `CSR_MIMPID) ? csr_mimpid :
+	    (csr_w == `CSR_MHARTID) ? csr_mhartid :
+	    (csr_w == `CSR_MSCRATCH) ? csr_mscratch :
+	    (csr_w == `CSR_MEPC) ? csr_mepc :
+	    (csr_w == `CSR_MCAUSE) ? csr_mcause :
+	    (csr_w == `CSR_MTVAL) ? csr_mtval :
+	    (csr_w == `CSR_MIP) ? csr_mip :
+	    0;
+
 always @(posedge clk) begin if (d_en) begin
+	d_addr <= f_addr;
 	d_opcode <= opcode_w;
 	if (opcode_w == `OP_ALUIMM) begin
 		d_bcu_op <= `BCU_DISABLE;
@@ -132,10 +176,33 @@ always @(posedge clk) begin if (d_en) begin
 		d_bcu_op <= `BCU_DISABLE;
 		d_alu_op <= `ALU_ADD;
 		d_rd <= 0; /* do not write back */
-	end else if (opcode_w == `OP_SYSTEM) begin
-		if (f_insn == 32'b000000000001_00000_000_00000_1110011) begin
-			$display("EBREAK taken pc@%x", pc);
+	end
+	if (opcode_w == `OP_SYSTEM) begin
+		if ({rs1_w,funct3_w,rd_w} == 0) begin
+			case (f_insn[31:20])
+			12'b000000000000: $display("ECALL  @%x", f_addr);
+			12'b000000000001: $display("EBREAK @%x", f_addr);
+			12'b000000000010: $display("URET   @%x", f_addr);
+			12'b000100000010: $display("SRET   @%x", f_addr);
+			12'b001100000010: $display("MRET   @%x", f_addr);
+			12'b000100000101: $display("WFI    @%x", f_addr);
+			default: $display("illegal insn @%x", f_addr);
+			endcase
 		end
+		d_csr_rd <= !((funct3_w[1:0] == `CSR_RW) && !rd_w);
+		d_csr_wr <= !((funct3_w[1:0] == `CSR_RS ||
+			       funct3_w[1:0] == `CSR_RC) && !rs1_w);
+		d_csr <= csr_w;
+		d_csr_val <= csr_val;
+		d_rd <= rd_w;
+		d_alu_op <= (funct3_w[1:0] == `CSR_RS) ? `ALU_OR :
+			    (funct3_w[1:0] == `CSR_RC) ? `ALU_ANDN :
+			    `ALU_OR;
+		d_op_val1 <= (funct3_w[1:0] == `CSR_RW) ? 0 : csr_val;
+		d_op_val2 <= (funct3_w[2]) ? rs1_w : reg1_w;
+	end else begin
+		d_csr_rd <= 0;
+		d_csr_wr <= 0;
 	end
 end end
 
@@ -144,6 +211,10 @@ reg [31:0]  x_out, x_npc;
 reg [4:0]   x_rd;
 reg [2:0]   x_lsu_op;
 reg [31:0]  x_lsu_val;
+reg [11:0]  x_csr;
+reg         x_csr_wr;
+reg         x_csr_rd;
+reg [31:0]  x_csr_val;
 reg         x_taken, x_link, x_load, x_store;
 
 always @(posedge clk) begin if (x_en) begin
@@ -168,6 +239,7 @@ always @(posedge clk) begin if (x_en) begin
 	`ALU_SRA:	x_out <= $signed(d_op_val1) >>> d_op_val2[4:0];
 	`ALU_OR:	x_out <= d_op_val1 | d_op_val2;
 	`ALU_AND:	x_out <= d_op_val1 & d_op_val2;
+	`ALU_ANDN:	x_out <= d_op_val1 & ~d_op_val2;
 	default:	x_out <= 0;
 	endcase
 	x_link <= d_opcode == `OP_JAL || d_opcode == `OP_JALR;
@@ -179,8 +251,13 @@ always @(posedge clk) begin if (x_en) begin
 	endcase
 	x_load <= d_opcode == `OP_LOAD;
 	x_store <= d_opcode == `OP_STORE;
-	x_npc <= pc + 4;
+	x_npc <= d_addr + 4;
 	x_rd <= d_rd;
+
+	x_csr_wr <= d_csr_wr;
+	x_csr_rd <= d_csr_rd;
+	x_csr_val <= d_csr_val;
+	x_csr <= d_csr;
 end end
 
 /* memory output */
@@ -188,6 +265,10 @@ reg [31:0]  m_out, m_npc;
 reg [4:0]   m_rd;
 reg [2:0]   m_lsu_op;
 reg         m_taken, m_link, m_load;
+reg [11:0]  m_csr;
+reg         m_csr_wr;
+reg [31:0]  m_csr_val;
+
 wire [31:0] lsu_out;
 wire [7:0] lsu_out_byte;
 wire [15:0] lsu_out_half;
@@ -206,22 +287,29 @@ assign lsu_out_byte = (mem_d_addr[1:0] == 2'b00) ? lsu_out[7:0] :
 		      lsu_out[31:24];
 assign lsu_out_half = mem_d_addr[1] ? lsu_out[31:16] : lsu_out[15:0];
 
-
 always @(posedge clk) begin if (m_en) begin
 	if (x_store) begin
 		$display("store @%x: %x", x_out, x_lsu_val);
 	end
+	if (x_csr_rd) begin
+		m_out <= x_csr_val;
+	end else begin
+		m_out <= x_out;
+	end
+	m_csr_val <= x_out;
+	m_csr_wr <= x_csr_wr;
+	m_csr <= x_csr;
+
 	m_npc <= x_npc;
 	m_rd <= x_rd;
 	m_link <= x_link;
 	m_taken <= x_taken;
 	m_load <= x_load;
 	m_lsu_op <= x_lsu_op;
-	m_out <= x_out;
 end end
 
 always @(posedge clk) begin if (w_en) begin
-	if (m_rd != 0 && x_load) begin
+	if (m_rd != 0 && m_load) begin
 		$display("load  @%x: %x", m_out, lsu_out);
 		case (m_lsu_op)
 		`LSU_LB:	regfile[m_rd] <= $signed(lsu_out_byte);
@@ -234,11 +322,20 @@ always @(posedge clk) begin if (w_en) begin
 	end else if (m_rd != 0) begin
 		regfile[m_rd] <= (m_link) ? m_npc : m_out;
 	end
+	if (m_csr_wr) begin
+		case (m_csr)
+		`CSR_MSCRATCH:	csr_mscratch <= m_csr_val;
+		`CSR_MEPC:	csr_mepc     <= m_csr_val;
+		`CSR_MCAUSE:	csr_mcause   <= m_csr_val;
+		`CSR_MTVAL:	csr_mtval    <= m_csr_val;
+		`CSR_MIP:	csr_mip      <= m_csr_val;
+		endcase
+	end
 	if (m_taken) begin
 		$display("branch taken to %x", m_out);
 		pc <= m_out;
 	end else begin
-		pc <= x_npc;
+		pc <= m_npc;
 	end
 end end
 
@@ -265,4 +362,31 @@ always @(posedge clk) begin
 		state <= (state << 1) | w_en;
 	end
 end
+
+always @(posedge clk) begin
+	if (rst) begin
+		csr_cycle <= 0;
+		csr_timer <= 0;
+		csr_instret <= 0;
+		csr_mvendorid <= 0;
+		csr_marchid <= 0;
+		csr_mimpid <= 0;
+		csr_mhartid <= 0;
+		csr_mstatus <= 0;
+		csr_misa <= 0;
+		csr_medeleg <= 0;
+		csr_mideleg <= 0;
+		csr_mie <= 0;
+		csr_mtvec <= 0;
+		csr_mcounteren <= 0;
+		csr_mscratch <= 0;
+		csr_mepc <= 0;
+		csr_mcause <= 0;
+		csr_mtval <= 0;
+		csr_mip <= 0;
+	end else begin
+		csr_cycle <= csr_cycle + 1;
+	end
+end
+
 endmodule
