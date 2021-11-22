@@ -195,7 +195,7 @@ wire [15:0] lsu_out_half;
 assign mem_d_addr = x_out;
 assign mem_d_wdata = x_lsu_val;
 assign mem_d_wmask = (x_lsu_op == `LSU_SB) ? 4'b0001 << x_out[1:0] :
-		     (x_lsu_op == `LSU_SH) ? 4'b0011 << x_out[1] :
+		     (x_lsu_op == `LSU_SH) ? 4'b0011 << 2*x_out[1] :
 		     4'b1111;
 assign mem_d_wstrb = m_en && x_store;
 assign mem_d_rstrb = m_en && x_load;
