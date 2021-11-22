@@ -200,9 +200,9 @@ assign mem_d_wmask = (x_lsu_op == `LSU_SB) ? 4'b0001 << x_out[1:0] :
 assign mem_d_wstrb = m_en && x_store;
 assign mem_d_rstrb = m_en && x_load;
 assign lsu_out = mem_d_rdata;
-assign lsu_out_byte = (mem_d_addr[2:0] == 2'b00) ? lsu_out[7:0] :
-		      (mem_d_addr[2:0] == 2'b01) ? lsu_out[15:8] :
-		      (mem_d_addr[2:0] == 2'b10) ? lsu_out[23:16] :
+assign lsu_out_byte = (mem_d_addr[1:0] == 2'b00) ? lsu_out[7:0] :
+		      (mem_d_addr[1:0] == 2'b01) ? lsu_out[15:8] :
+		      (mem_d_addr[1:0] == 2'b10) ? lsu_out[23:16] :
 		      lsu_out[31:24];
 assign lsu_out_half = mem_d_addr[1] ? lsu_out[31:16] : lsu_out[15:0];
 
