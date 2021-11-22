@@ -151,9 +151,9 @@ always @(posedge clk) begin if (x_en) begin
 	`COMP_BEQ:	x_taken <= d_bcu_val1 == d_bcu_val2;
 	`COMP_BNE:	x_taken <= d_bcu_val1 != d_bcu_val2;
 	`COMP_BLT:	x_taken <= $signed(d_bcu_val1) < $signed(d_bcu_val2);
-	`COMP_BGE:	x_taken <= $signed(d_bcu_val1) > $signed(d_bcu_val2);
+	`COMP_BGE:	x_taken <= $signed(d_bcu_val1) >= $signed(d_bcu_val2);
 	`COMP_BLTU:	x_taken <= d_bcu_val1 < d_bcu_val2;
-	`COMP_BGEU:	x_taken <= d_bcu_val1 > d_bcu_val2;
+	`COMP_BGEU:	x_taken <= d_bcu_val1 >= d_bcu_val2;
 	`BCU_TAKEN:	x_taken <= 1;
 	default:	x_taken <= 0;
 	endcase
