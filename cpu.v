@@ -200,6 +200,7 @@ always @(posedge clk) begin if (d_en) begin
 			    `ALU_OR;
 		d_op_val1 <= (funct3_w[1:0] == `CSR_RW) ? 0 : csr_val;
 		d_op_val2 <= (funct3_w[2]) ? rs1_w : reg1_w;
+		d_bcu_op <= `BCU_DISABLE;
 	end else begin
 		d_csr_rd <= 0;
 		d_csr_wr <= 0;
