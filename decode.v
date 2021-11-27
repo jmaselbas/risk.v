@@ -28,7 +28,7 @@ assign imm_i = {{21{insn[31]}},insn[30:25],insn[24:21],insn[20]};
 assign imm_s = {{21{insn[31]}},insn[30:25],insn[11:8],insn[7]};
 assign imm_b = {{20{insn[31]}},insn[7],insn[30:25],insn[11:8],1'b0};
 assign imm_u = {insn[31],insn[30:20],insn[19:12],12'b0};
-assign imm_j = {{16{insn[31]}},insn[19:12],insn[30:25],insn[24:21],1'b0};
+assign imm_j = {{12{insn[31]}},insn[19:12],insn[20],insn[30:25],insn[24:21],1'b0};
 
 assign imm = (opcode == `OP_LUI)    ? imm_u :
 	     (opcode == `OP_AUIPC)  ? imm_u :
