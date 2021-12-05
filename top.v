@@ -1,4 +1,4 @@
-module top (input clk_top,
+module top (input clk48,
 
 	    output rgb_led0_r,
 	    output rgb_led0_g,
@@ -14,14 +14,12 @@ assign rgb_led0_g = ~led_reg[21];
 assign rgb_led0_b = ~led_reg[22];
 
 reg rst = 1;
-reg clk = 0;
 reg btn = 0;
 reg btn_n = 1;
-always @(posedge clk_top) begin
-	clk <= ~clk;
+always @(posedge clk48) begin
 	btn <= usr_btn;
 end
-always @(posedge clk) begin
+always @(posedge clk48) begin
 	btn_n <= ~btn;
 	rst <= btn_n;
 	if (rst) begin
@@ -54,7 +52,7 @@ wire [31:0] mem_d_rdata;
 wire        mem_d_rbusy;
 wire        mem_d_wbusy;
 
-rv32i cpu(rst, clk,
+rv32i cpu(rst, clk48,
 	  mem_i_addr,
 	  mem_i_rstrb,
 	  mem_i_rdata,
@@ -68,7 +66,7 @@ rv32i cpu(rst, clk,
 	  mem_d_rbusy,
 	  mem_d_wbusy);
 
-ram rom(rst, clk,
+ram rom(rst, clk48,
 	mem_i_addr,
 	mem_i_wmask,
 	mem_i_rstrb,
@@ -77,7 +75,7 @@ ram rom(rst, clk,
 	mem_i_wdata,
 	mem_i_rbusy,
 	mem_i_wbusy);
-ram ram(rst, clk,
+ram ram(rst, clk48,
 	mem_d_addr,
 	mem_d_wmask,
 	mem_d_rstrb,
