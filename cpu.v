@@ -59,7 +59,10 @@ parameter MEMORY = 1 << 3;
 parameter WRITE_BACK = 1 << 4;
 
 /* fetch */
-assign mem_i_rstrb = 1;
+wire f_freeze;
+assign f_freeze = mem_i_rbusy;
+
+assign mem_i_rstrb = f_en;
 assign mem_i_addr = pc;
 reg [31:0]  f_addr;
 wire [31:0] f_insn;
@@ -302,6 +305,9 @@ end else if (x_en) begin
 end end
 
 /* memory output */
+wire m_freeze;
+assign m_freeze = mem_d_rbusy | mem_d_wbusy;
+
 reg [31:0]  m_out, m_npc;
 reg [4:0]   m_rd;
 reg [2:0]   m_lsu_op;
@@ -420,7 +426,11 @@ always @(posedge clk) begin
 	if (rst) begin
 		state <= FETCH_INSN;
 	end else begin
-		state <= (state << 1) | w_en;
+		if (f_freeze | m_freeze) begin
+			state <= state;
+		end else begin
+			state <= (state << 1) | w_en;
+		end
 	end
 end
 
