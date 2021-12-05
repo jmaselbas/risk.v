@@ -21,8 +21,10 @@ output        mem_d_wstrb,
 output        mem_d_rstrb,
 input  [31:0] mem_d_rdata,
 input         mem_d_rbusy,
-input         mem_d_wbusy
+input         mem_d_wbusy,
+input  [31:0] ext_rst_vector
 );
+
 reg [31:0] regfile [0:31];
 reg [31:0] pc;
 reg [63:0] csr_cycle;
@@ -369,7 +371,7 @@ end end
 integer i;
 always @(posedge clk) begin
 if (rst) begin
-	pc <= 0;
+	pc <= ext_rst_vector;
 	csr_timer <= 0;
 	csr_instret <= 0;
 	csr_mvendorid <= 0;

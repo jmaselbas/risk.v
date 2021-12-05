@@ -29,6 +29,8 @@ always @(posedge clk48) begin
 	end
 end
 
+wire [31:0] rst_vector = 0;
+
 wire [31:0] mem_i_addr;
 wire        mem_i_rstrb;
 wire [31:0] mem_i_rdata;
@@ -64,7 +66,9 @@ rv32i cpu(rst, clk48,
 	  mem_d_rstrb,
 	  mem_d_rdata,
 	  mem_d_rbusy,
-	  mem_d_wbusy);
+	  mem_d_wbusy,
+	  rst_vector
+);
 
 ram rom(rst, clk48,
 	mem_i_addr,

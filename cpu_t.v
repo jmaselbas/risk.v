@@ -19,6 +19,8 @@ wire [31:0] mem_d_rdata;
 wire        mem_d_rbusy;
 wire        mem_d_wbusy;
 
+wire [31:0] rst_vector = 0;
+
 rv32i cpu (rst, clk,
 	   mem_i_addr,
 	   mem_i_rstrb,
@@ -31,7 +33,9 @@ rv32i cpu (rst, clk,
 	   mem_d_rstrb,
 	   mem_d_rdata,
 	   mem_d_rbusy,
-	   mem_d_wbusy);
+	   mem_d_wbusy,
+	   rst_vector
+);
 
 ram rom(rst, clk,
 	mem_i_addr,
