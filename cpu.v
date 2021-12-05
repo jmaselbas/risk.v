@@ -58,7 +58,10 @@ wire [31:0] f_insn;
 
 assign f_insn = mem_i_rdata;
 
-always @(posedge clk) begin if (f_en) begin
+always @(posedge clk) begin
+if (rst) begin
+	f_addr <= 0;
+end else if (f_en) begin
 	$display("fetching pc = %x", pc);
 	f_addr <= pc;
 end end
@@ -105,7 +108,22 @@ wire [31:0] csr_val =
 	    (csr_w == `CSR_MIP) ? csr_mip :
 	    0;
 
-always @(posedge clk) begin if (d_en) begin
+always @(posedge clk) begin if (rst) begin
+	d_addr <= 0;
+	d_opcode <= 0;
+	d_op_val1 <= 0;
+	d_op_val2 <= 0;
+	d_alu_op <= 0;
+	d_bcu_val1 <= 0;
+	d_bcu_val2 <= 0;
+	d_bcu_op <= 0;
+	d_lsu_op <= 0;
+	d_csr <= 0;
+	d_csr_rd <= 0;
+	d_csr_wr <= 0;
+	d_csr_val <= 0;
+	d_rd <= 0;
+end else if (d_en) begin
 	d_addr <= f_addr;
 	d_opcode <= opcode_w;
 	if (opcode_w == `OP_ALUIMM) begin
@@ -218,7 +236,21 @@ reg         x_csr_rd;
 reg [31:0]  x_csr_val;
 reg         x_taken, x_link, x_load, x_store;
 
-always @(posedge clk) begin if (x_en) begin
+always @(posedge clk) begin if (rst) begin
+	x_out <= 0;
+	x_npc <= 0;
+	x_rd <= 0;
+	x_lsu_op <= 0;
+	x_lsu_val <= 0;
+	x_csr <= 0;
+	x_csr_wr <= 0;
+	x_csr_rd <= 0;
+	x_csr_val <= 0;
+	x_taken <= 0;
+	x_link <= 0;
+	x_load <= 0;
+	x_store <= 0;
+end else if (x_en) begin
 	case (d_bcu_op)
 	`COMP_BEQ:	x_taken <= d_bcu_val1 == d_bcu_val2;
 	`COMP_BNE:	x_taken <= d_bcu_val1 != d_bcu_val2;
@@ -288,7 +320,18 @@ assign lsu_out_byte = (mem_d_addr[1:0] == 2'b00) ? lsu_out[7:0] :
 		      lsu_out[31:24];
 assign lsu_out_half = mem_d_addr[1] ? lsu_out[31:16] : lsu_out[15:0];
 
-always @(posedge clk) begin if (m_en) begin
+always @(posedge clk) begin if (rst) begin
+	m_out <= 0;
+	m_npc <= 0;
+	m_rd <= 0;
+	m_lsu_op <= 0;
+	m_taken <= 0;
+	m_link <= 0;
+	m_load <= 0;
+	m_csr <= 0;
+        m_csr_wr <= 0;
+	m_csr_val <= 0;
+end else if (m_en) begin
 	if (x_store) begin
 		$display("store @%x: %x", x_out, x_lsu_val);
 	end
@@ -309,7 +352,30 @@ always @(posedge clk) begin if (m_en) begin
 	m_lsu_op <= x_lsu_op;
 end end
 
-always @(posedge clk) begin if (w_en) begin
+integer i;
+always @(posedge clk) begin
+if (rst) begin
+	pc <= 0;
+	csr_timer <= 0;
+	csr_instret <= 0;
+	csr_mvendorid <= 0;
+	csr_marchid <= 0;
+	csr_mimpid <= 0;
+	csr_mhartid <= 0;
+	csr_mstatus <= 0;
+	csr_misa <= 32'b01_000_00000000000000000000000001;
+	csr_medeleg <= 0;
+	csr_mideleg <= 0;
+	csr_mie <= 0;
+	csr_mtvec <= 0;
+	csr_mcounteren <= 0;
+	csr_mscratch <= 0;
+	csr_mepc <= 0;
+	csr_mcause <= 0;
+	csr_mtval <= 0;
+	csr_mip <= 0;
+	for (i = 0; i < 32; i = i + 1) regfile[i] <= 0;
+end else if (w_en) begin
 	if (m_rd != 0 && m_load) begin
 		$display("load  @%x: %x", m_out, lsu_out);
 		case (m_lsu_op)
@@ -342,23 +408,9 @@ end end
 
 decode decode(f_insn, opcode_w, funct7_w, funct3_w, invalid, rd_w, rs1_w, rs2_w, imm_w);
 
-integer i;
 always @(posedge clk) begin
 	if (rst) begin
 		state <= FETCH_INSN;
-		pc <= 0;
-		d_opcode <= 0;
-		d_op_val1 <= 0;
-		d_op_val2 <= 0;
-		d_alu_op <= 0;
-		d_rd <= 0;
-		x_rd <= 0;
-		x_taken <= 0;
-		x_link <= 0;
-		x_lsu_val <= 0;
-		x_lsu_op <= 0;
-		x_out <= 0;
-		for (i = 0; i < 32; i = i + 1) regfile[i] <= 0;
 	end else begin
 		state <= (state << 1) | w_en;
 	end
@@ -367,24 +419,6 @@ end
 always @(posedge clk) begin
 	if (rst) begin
 		csr_cycle <= 0;
-		csr_timer <= 0;
-		csr_instret <= 0;
-		csr_mvendorid <= 0;
-		csr_marchid <= 0;
-		csr_mimpid <= 0;
-		csr_mhartid <= 0;
-		csr_mstatus <= 0;
-		csr_misa <= 0;
-		csr_medeleg <= 0;
-		csr_mideleg <= 0;
-		csr_mie <= 0;
-		csr_mtvec <= 0;
-		csr_mcounteren <= 0;
-		csr_mscratch <= 0;
-		csr_mepc <= 0;
-		csr_mcause <= 0;
-		csr_mtval <= 0;
-		csr_mip <= 0;
 	end else begin
 		csr_cycle <= csr_cycle + 1;
 	end
