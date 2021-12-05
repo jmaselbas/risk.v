@@ -1,4 +1,12 @@
 `include "rv32i.vh"
+`define RISKV_DEBUG 1
+
+`ifdef RISKV_DEBUG
+ `define DBG(m) $display m
+`else
+ `define DBG(m)
+`endif
+
 module rv32i(
 input         rst,
 input         clk,
@@ -62,7 +70,7 @@ always @(posedge clk) begin
 if (rst) begin
 	f_addr <= 0;
 end else if (f_en) begin
-	$display("fetching pc = %x", pc);
+	`DBG(("fetching pc = %x", pc));
 	f_addr <= pc;
 end end
 
@@ -198,13 +206,13 @@ end else if (d_en) begin
 	if (opcode_w == `OP_SYSTEM) begin
 		if ({rs1_w,funct3_w,rd_w} == 0) begin
 			case (f_insn[31:20])
-			12'b000000000000: $display("ECALL  @%x", f_addr);
-			12'b000000000001: $display("EBREAK @%x", f_addr);
-			12'b000000000010: $display("URET   @%x", f_addr);
-			12'b000100000010: $display("SRET   @%x", f_addr);
-			12'b001100000010: $display("MRET   @%x", f_addr);
-			12'b000100000101: $display("WFI    @%x", f_addr);
-			default: $display("illegal insn @%x", f_addr);
+			12'b000000000000: `DBG(("ECALL  @%x", f_addr));
+			12'b000000000001: `DBG(("EBREAK @%x", f_addr));
+			12'b000000000010: `DBG(("URET   @%x", f_addr));
+			12'b000100000010: `DBG(("SRET   @%x", f_addr));
+			12'b001100000010: `DBG(("MRET   @%x", f_addr));
+			12'b000100000101: `DBG(("WFI    @%x", f_addr));
+			default: `DBG(("illegal insn @%x", f_addr));
 			endcase
 		end
 		d_csr_rd <= !((funct3_w[1:0] == `CSR_RW) && !rd_w);
@@ -333,7 +341,7 @@ always @(posedge clk) begin if (rst) begin
 	m_csr_val <= 0;
 end else if (m_en) begin
 	if (x_store) begin
-		$display("store @%x: %x", x_out, x_lsu_val);
+		`DBG(("store @%x: %x", x_out, x_lsu_val));
 	end
 	if (x_csr_rd) begin
 		m_out <= x_csr_val;
@@ -377,7 +385,7 @@ if (rst) begin
 	for (i = 0; i < 32; i = i + 1) regfile[i] <= 0;
 end else if (w_en) begin
 	if (m_rd != 0 && m_load) begin
-		$display("load  @%x: %x", m_out, lsu_out);
+		`DBG(("load  @%x: %x", m_out, lsu_out));
 		case (m_lsu_op)
 		`LSU_LB:	regfile[m_rd] <= $signed(lsu_out_byte);
 		`LSU_LH:	regfile[m_rd] <= $signed(lsu_out_half);
@@ -399,7 +407,7 @@ end else if (w_en) begin
 		endcase
 	end
 	if (m_taken) begin
-		$display("branch taken to %x", m_out);
+		`DBG(("branch taken to %x", m_out));
 		pc <= m_out;
 	end else begin
 		pc <= m_npc;
