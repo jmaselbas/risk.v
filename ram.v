@@ -16,8 +16,12 @@ wire [6:0] ram_addr;
 assign ram_addr = addr[8:2];
 
 reg [31:0] data_r;
-
 assign rdata = data_r;
+
+reg rbusy_r;
+reg wbusy_r;
+assign rbusy = rbusy_r;
+assign wbusy = wbusy_r;
 
 initial begin
 	$readmemh("romcode.hex", mem);
@@ -26,10 +30,14 @@ end
 always @(posedge clk) begin
 	if (rst) begin
 		data_r <= 0;
+		rbusy_r <= 1;
+		wbusy_r <= 1;
 	end else begin
+		rbusy_r <= !rstrb;
 		if (rstrb) begin
 			data_r <= mem[ram_addr];
 		end
+		wbusy_r <= !wstrb;
 		if (wstrb) begin
 			if (wmask[0]) mem[ram_addr][7:0]   <= wdata[7:0];
 			if (wmask[1]) mem[ram_addr][15:8]  <= wdata[15:8];

@@ -62,21 +62,21 @@ parameter WRITE_BACK = 1 << 4;
 
 /* fetch */
 wire f_freeze;
-assign f_freeze = mem_i_rbusy;
+assign f_freeze = mem_i_rbusy && f_en;
 
 assign mem_i_rstrb = f_en;
 assign mem_i_addr = pc;
-reg [31:0]  f_addr;
-wire [31:0] f_insn;
-
-assign f_insn = mem_i_rdata;
+reg [31:0] f_addr;
+reg [31:0] f_insn;
 
 always @(posedge clk) begin
 if (rst) begin
 	f_addr <= 0;
-end else if (f_en) begin
-	`DBG(("fetching pc = %x", pc));
+	f_insn <= 0;
+end else if (f_en && !f_freeze) begin
+	`DBG(("fetching pc @%x: %x", pc, mem_i_rdata));
 	f_addr <= pc;
+	f_insn <= mem_i_rdata;
 end end
 
 /* decode internal wire */
@@ -308,7 +308,7 @@ end end
 
 /* memory output */
 wire m_freeze;
-assign m_freeze = mem_d_rbusy | mem_d_wbusy;
+assign m_freeze = (mem_d_rstrb && mem_d_rbusy) || (mem_d_wstrb && mem_d_wbusy);
 
 reg [31:0]  m_out, m_npc;
 reg [4:0]   m_rd;
@@ -344,7 +344,7 @@ always @(posedge clk) begin if (rst) begin
 	m_csr <= 0;
         m_csr_wr <= 0;
 	m_csr_val <= 0;
-end else if (m_en) begin
+end else if (m_en && !m_freeze) begin
 	if (x_store) begin
 		`DBG(("store @%x: %x", x_out, x_lsu_val));
 	end
