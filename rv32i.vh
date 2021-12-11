@@ -72,7 +72,7 @@
 `define CSR_MSTATUS    12'h300 /* machine status register */
 `define CSR_MISA       12'h301 /* ISA and extensions */
 `define CSR_MEDELEG    12'h302 /* machine exception delegation register */
-`define CSR_MiDELEG    12'h303 /* machine interrupt delegation register */
+`define CSR_MIDELEG    12'h303 /* machine interrupt delegation register */
 `define CSR_MIE        12'h304 /* machine interrupt enable register */
 `define CSR_MTVEC      12'h305 /* machine trap-handler base address */
 `define CSR_MCOUNTEREN 12'h306 /* machine counter enable */
