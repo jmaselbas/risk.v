@@ -41,7 +41,7 @@ PCF = orangecrab_r0.2.pcf
 	$(OBJCOPY) -j .text -O binary $^ $@ && truncate -s %4 $@ && $(OBJCOPY) -I binary --reverse-bytes=4 $@
 
 %.hex: %.bin
-	xxd -c4 $< | sed 's/[0-9a-fA-F]\+: //; s/ //; s/\(........\).*/\1/' >$@
+	xxd -c4 -p $< >$@
 
 clean:
 	rm -f *.elf *.bin *.hex a.out
