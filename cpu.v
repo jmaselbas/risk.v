@@ -312,8 +312,7 @@ assign m_freeze = mem_d_rbusy | mem_d_wbusy;
 
 reg [31:0]  m_out, m_npc;
 reg [4:0]   m_rd;
-reg [2:0]   m_lsu_op;
-reg         m_taken, m_link, m_load;
+reg         m_taken, m_link;
 reg [11:0]  m_csr;
 reg         m_csr_wr;
 reg [31:0]  m_csr_val;
@@ -340,10 +339,8 @@ always @(posedge clk) begin if (rst) begin
 	m_out <= 0;
 	m_npc <= 0;
 	m_rd <= 0;
-	m_lsu_op <= 0;
 	m_taken <= 0;
 	m_link <= 0;
-	m_load <= 0;
 	m_csr <= 0;
         m_csr_wr <= 0;
 	m_csr_val <= 0;
@@ -351,7 +348,17 @@ end else if (m_en) begin
 	if (x_store) begin
 		`DBG(("store @%x: %x", x_out, x_lsu_val));
 	end
-	if (x_csr_rd) begin
+	if (x_load) begin
+		`DBG(("load  @%x: %x", x_out, lsu_out));
+		case (x_lsu_op)
+		`LSU_LB:	m_out <= $signed(lsu_out_byte);
+		`LSU_LH:	m_out <= $signed(lsu_out_half);
+		`LSU_LW:	m_out <= lsu_out;
+		`LSU_LBU:	m_out <= lsu_out_byte;
+		`LSU_LHU:	m_out <= lsu_out_half;
+		default:	m_out <= 0; /* invalid */
+		endcase
+	end else if (x_csr_rd) begin
 		m_out <= x_csr_val;
 	end else begin
 		m_out <= x_out;
@@ -364,8 +371,6 @@ end else if (m_en) begin
 	m_rd <= x_rd;
 	m_link <= x_link;
 	m_taken <= x_taken;
-	m_load <= x_load;
-	m_lsu_op <= x_lsu_op;
 end end
 
 integer i;
@@ -392,17 +397,7 @@ if (rst) begin
 	csr_mip <= 0;
 	for (i = 0; i < 32; i = i + 1) regfile[i] <= 0;
 end else if (w_en) begin
-	if (m_rd != 0 && m_load) begin
-		`DBG(("load  @%x: %x", m_out, lsu_out));
-		case (m_lsu_op)
-		`LSU_LB:	regfile[m_rd] <= $signed(lsu_out_byte);
-		`LSU_LH:	regfile[m_rd] <= $signed(lsu_out_half);
-		`LSU_LW:	regfile[m_rd] <= lsu_out;
-		`LSU_LBU:	regfile[m_rd] <= lsu_out_byte;
-		`LSU_LHU:	regfile[m_rd] <= lsu_out_half;
-		default:	regfile[m_rd] <= 0; /* invalid */
-		endcase
-	end else if (m_rd != 0) begin
+	if (m_rd != 0) begin
 		regfile[m_rd] <= (m_link) ? m_npc : m_out;
 	end
 	if (m_csr_wr) begin
