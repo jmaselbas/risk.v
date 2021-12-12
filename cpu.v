@@ -397,6 +397,7 @@ if (rst) begin
 	csr_mip <= 0;
 	for (i = 0; i < 32; i = i + 1) regfile[i] <= 0;
 end else if (w_en) begin
+	csr_instret <= csr_instret + 1;
 	if (m_rd != 0) begin
 		regfile[m_rd] <= (m_link) ? m_npc : m_out;
 	end
