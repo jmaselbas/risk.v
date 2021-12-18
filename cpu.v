@@ -94,9 +94,9 @@ assign reg2_w = regfile[rs2_w];
 reg [31:0]  d_addr;
 reg [31:0]  d_op_val1, d_op_val2;
 reg [3:0]   d_alu_op;
-reg [3:0]   d_funct3; /* used by lsu, bcu */
+reg [3:0]   d_funct3; /* used by lsu, bcu, mau */
 reg [31:0]  d_bcu_val1, d_bcu_val2;
-reg         d_bcu_en;
+reg         d_bcu_en, d_mau_en;
 reg         d_link, d_load, d_store;
 reg [11:0]  d_csr;
 reg         d_csr_rd, d_csr_wr;
@@ -130,6 +130,7 @@ always @(posedge clk) begin if (rst) begin
 	d_bcu_val1 <= 0;
 	d_bcu_val2 <= 0;
 	d_bcu_en <= 0;
+	d_mau_en <= 0;
 	d_link <= 0;
 	d_load <= 0;
 	d_store <= 0;
@@ -141,6 +142,8 @@ always @(posedge clk) begin if (rst) begin
 end else if (d_en) begin
 	d_addr <= f_addr;
 	d_funct3 <= funct3_w;
+	d_mau_en <= (opcode_w == `OP_ALUIMM) ? funct7_w[0] :
+		    (opcode_w == `OP_ALU) ? funct7_w[0] : 0;
 	d_link   <= (opcode_w == `OP_JAL) || (opcode_w == `OP_JALR);
 	d_load   <= (opcode_w == `OP_LOAD);
 	d_store  <= (opcode_w == `OP_STORE);
@@ -242,6 +245,12 @@ reg         x_csr_rd;
 reg [31:0]  x_csr_val;
 reg         x_taken, x_link, x_load, x_store;
 
+wire [63:0] mul;
+assign mul = (d_funct3 == `MAU_MUL)  ? $signed(d_op_val1) * $signed(d_op_val2) :
+	     (d_funct3 == `MAU_MULH) ? $signed(d_op_val1) * $signed(d_op_val2) :
+	     (d_funct3 == `MAU_MULHU)  ? d_op_val1 * d_op_val2 :
+	     (d_funct3 == `MAU_MULHSU) ? $signed(d_op_val1) * d_op_val2 : 0;
+
 always @(posedge clk) begin if (rst) begin
 	x_out <= 0;
 	x_npc <= 0;
@@ -269,20 +278,32 @@ end else if (x_en) begin
 	end else begin
 		x_taken <= d_link;
 	end
-	case (d_alu_op)
-	`ALU_ADD:	x_out <= d_op_val1 + d_op_val2;
-	`ALU_SUB:	x_out <= d_op_val1 - d_op_val2;
-	`ALU_SLL:	x_out <= d_op_val1 << d_op_val2[4:0];
-	`ALU_SLT:	x_out <= $signed(d_op_val1) < $signed(d_op_val2);
-	`ALU_SLTU:	x_out <= d_op_val1 < d_op_val2;
-	`ALU_XOR:	x_out <= d_op_val1 ^ d_op_val2;
-	`ALU_SRL:	x_out <= d_op_val1 >> d_op_val2[4:0];
-	`ALU_SRA:	x_out <= $signed(d_op_val1) >>> d_op_val2[4:0];
-	`ALU_OR:	x_out <= d_op_val1 | d_op_val2;
-	`ALU_AND:	x_out <= d_op_val1 & d_op_val2;
-	`ALU_ANDN:	x_out <= d_op_val1 & ~d_op_val2;
-	default:	x_out <= 0;
-	endcase
+	if (d_mau_en) begin
+		case (d_funct3)
+		`MAU_MUL:	x_out <= mul[31:0];
+		`MAU_MULHSU:	x_out <= mul[63:32];
+		`MAU_MULHU:	x_out <= mul[63:32];
+		`MAU_DIV:	x_out <= (d_op_val2 == 0) ? -1 : d_op_val1 / $signed(d_op_val2);
+		`MAU_DIVU:	x_out <= (d_op_val2 == 0) ? -1 : d_op_val1 / d_op_val2;
+		`MAU_REM:	x_out <= (d_op_val2 == 0) ? d_op_val1 : d_op_val1 % $signed(d_op_val2);
+		`MAU_REMU:	x_out <= (d_op_val2 == 0) ? d_op_val1 : d_op_val1 % d_op_val2;
+		endcase
+	end else begin
+		case (d_alu_op)
+		`ALU_ADD:	x_out <= d_op_val1 + d_op_val2;
+		`ALU_SUB:	x_out <= d_op_val1 - d_op_val2;
+		`ALU_SLL:	x_out <= d_op_val1 << d_op_val2[4:0];
+		`ALU_SLT:	x_out <= $signed(d_op_val1) < $signed(d_op_val2);
+		`ALU_SLTU:	x_out <= d_op_val1 < d_op_val2;
+		`ALU_XOR:	x_out <= d_op_val1 ^ d_op_val2;
+		`ALU_SRL:	x_out <= d_op_val1 >> d_op_val2[4:0];
+		`ALU_SRA:	x_out <= $signed(d_op_val1) >>> d_op_val2[4:0];
+		`ALU_OR:	x_out <= d_op_val1 | d_op_val2;
+		`ALU_AND:	x_out <= d_op_val1 & d_op_val2;
+		`ALU_ANDN:	x_out <= d_op_val1 & ~d_op_val2;
+		default:	x_out <= 0;
+		endcase
+	end
 	x_link <= d_link;
 	x_lsu_op <= d_funct3;
 	case (d_funct3)
