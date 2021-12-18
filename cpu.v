@@ -142,8 +142,7 @@ always @(posedge clk) begin if (rst) begin
 end else if (d_en) begin
 	d_addr <= f_addr;
 	d_funct3 <= funct3_w;
-	d_mau_en <= (opcode_w == `OP_ALUIMM) ? funct7_w[0] :
-		    (opcode_w == `OP_ALU) ? funct7_w[0] : 0;
+	d_mau_en <= (opcode_w == `OP_ALU) ? funct7_w[0] : 0;
 	d_link   <= (opcode_w == `OP_JAL) || (opcode_w == `OP_JALR);
 	d_load   <= (opcode_w == `OP_LOAD);
 	d_store  <= (opcode_w == `OP_STORE);
