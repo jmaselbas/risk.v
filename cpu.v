@@ -94,7 +94,7 @@ assign reg2_w = regfile[rs2_w];
 reg [31:0]  d_addr;
 reg [31:0]  d_op_val1, d_op_val2;
 reg [3:0]   d_alu_op;
-reg [3:0]   d_funct3; /* used by lsu, bcu, mau */
+reg [2:0]   d_funct3; /* used by lsu, bcu, mau */
 reg [31:0]  d_bcu_val1, d_bcu_val2;
 reg         d_bcu_en, d_mau_en;
 reg         d_link, d_load, d_store;
@@ -245,10 +245,29 @@ reg [31:0]  x_csr_val;
 reg         x_taken, x_link, x_load, x_store;
 
 wire [63:0] mul;
-assign mul = (d_funct3 == `MAU_MUL)  ? $signed(d_op_val1) * $signed(d_op_val2) :
-	     (d_funct3 == `MAU_MULH) ? $signed(d_op_val1) * $signed(d_op_val2) :
-	     (d_funct3 == `MAU_MULHU)  ? d_op_val1 * d_op_val2 :
-	     (d_funct3 == `MAU_MULHSU) ? $signed(d_op_val1) * d_op_val2 : 0;
+wire [63:0] mau_mul;
+wire [63:0] mau_mulh;
+wire [63:0] mau_mulhu;
+wire [63:0] mau_mulhsu;
+wire [63:0] signed_op_val1;
+wire [63:0] signed_op_val2;
+wire [63:0] wide_op_val1;
+wire [63:0] wide_op_val2;
+wire [31:0] rem;
+
+assign signed_op_val1 = $signed(d_op_val1);
+assign signed_op_val2 = $signed(d_op_val2);
+assign wide_op_val1 = $unsigned(d_op_val1);
+assign wide_op_val2 = $unsigned(d_op_val2);
+assign mau_mul = $signed(signed_op_val1) * $signed(signed_op_val2);
+assign mau_mulh = $signed(signed_op_val1) * $signed(signed_op_val2);
+assign mau_mulhu = $unsigned(wide_op_val1) * $unsigned(wide_op_val2);
+assign mau_mulhsu = $signed(signed_op_val1) * $unsigned(wide_op_val2);
+assign mul = (d_funct3 == `MAU_MUL) ? mau_mul :
+	     (d_funct3 == `MAU_MULH) ? mau_mulh :
+	     (d_funct3 == `MAU_MULHU) ? mau_mulhu :
+	     (d_funct3 == `MAU_MULHSU) ? mau_mulhsu : 0;
+assign rem = $signed(d_op_val1) % $signed(d_op_val2);
 
 always @(posedge clk) begin if (rst) begin
 	x_out <= 0;
@@ -280,12 +299,13 @@ end else if (x_en) begin
 	if (d_mau_en) begin
 		case (d_funct3)
 		`MAU_MUL:	x_out <= mul[31:0];
+		`MAU_MULH:	x_out <= mul[63:32];
 		`MAU_MULHSU:	x_out <= mul[63:32];
 		`MAU_MULHU:	x_out <= mul[63:32];
-		`MAU_DIV:	x_out <= (d_op_val2 == 0) ? -1 : d_op_val1 / $signed(d_op_val2);
+		`MAU_DIV:	x_out <= (d_op_val2 == 0) ? -1 : $signed(d_op_val1) / $signed(d_op_val2);
 		`MAU_DIVU:	x_out <= (d_op_val2 == 0) ? -1 : d_op_val1 / d_op_val2;
-		`MAU_REM:	x_out <= (d_op_val2 == 0) ? d_op_val1 : d_op_val1 % $signed(d_op_val2);
-		`MAU_REMU:	x_out <= (d_op_val2 == 0) ? d_op_val1 : d_op_val1 % d_op_val2;
+		`MAU_REM:	x_out <= (d_op_val2 == 0) ? d_op_val1 : rem;
+		`MAU_REMU:	x_out <= (d_op_val2 == 0) ? d_op_val1 : (d_op_val1 % d_op_val2);
 		endcase
 	end else begin
 		case (d_alu_op)
