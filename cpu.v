@@ -102,6 +102,7 @@ reg [11:0]  d_csr;
 reg         d_csr_rd, d_csr_wr;
 reg [31:0]  d_csr_val;
 reg [4:0]   d_rd;
+reg         d_is_div;
 
 wire [31:0] csr_val =
 	    (csr_w == `CSR_RDCYCLE) ? csr_cycle[31:0] :
@@ -131,6 +132,7 @@ always @(posedge clk) begin if (rst) begin
 	d_bcu_val2 <= 0;
 	d_bcu_en <= 0;
 	d_mau_en <= 0;
+	d_is_div <= 0;
 	d_link <= 0;
 	d_load <= 0;
 	d_store <= 0;
@@ -143,6 +145,7 @@ end else if (d_en) begin
 	d_addr <= f_addr;
 	d_funct3 <= funct3_w;
 	d_mau_en <= (opcode_w == `OP_ALU) ? funct7_w[0] : 0;
+	d_is_div <= funct3_w[2];
 	d_link   <= (opcode_w == `OP_JAL) || (opcode_w == `OP_JALR);
 	d_load   <= (opcode_w == `OP_LOAD);
 	d_store  <= (opcode_w == `OP_STORE);
@@ -243,31 +246,79 @@ reg         x_csr_wr;
 reg         x_csr_rd;
 reg [31:0]  x_csr_val;
 reg         x_taken, x_link, x_load, x_store;
+reg [4:0] div_counter;
+wire x_freeze;
+reg x_freeze_reg;
+wire entering_x_freeze;
+wire div_finished;
+reg div_finished_reg;
 
-wire [63:0] mul;
-wire [63:0] mau_mul;
-wire [63:0] mau_mulh;
-wire [63:0] mau_mulhu;
-wire [63:0] mau_mulhsu;
-wire [63:0] signed_op_val1;
-wire [63:0] signed_op_val2;
-wire [63:0] wide_op_val1;
-wire [63:0] wide_op_val2;
+assign x_freeze = d_mau_en && x_en && d_is_div && !div_finished_reg;
+assign entering_x_freeze = x_freeze && !x_freeze_reg;
+assign div_finished = div_counter == 0;
+
+wire is_MULH   = (d_funct3 == `MAU_MULH);
+wire is_MULHSU = (d_funct3 == `MAU_MULHSU);
+
+wire sign1 = d_op_val1[31] &  is_MULH;
+wire sign2 = d_op_val2[31] & (is_MULH | is_MULHSU);
+
+wire signed [32:0] signed1 = {sign1, d_op_val1};
+wire signed [32:0] signed2 = {sign2, d_op_val2};
+wire signed [63:0] multiply = signed1 * signed2;
 wire [31:0] rem;
 
-assign signed_op_val1 = $signed(d_op_val1);
-assign signed_op_val2 = $signed(d_op_val2);
-assign wide_op_val1 = $unsigned(d_op_val1);
-assign wide_op_val2 = $unsigned(d_op_val2);
-assign mau_mul = $signed(signed_op_val1) * $signed(signed_op_val2);
-assign mau_mulh = $signed(signed_op_val1) * $signed(signed_op_val2);
-assign mau_mulhu = $unsigned(wide_op_val1) * $unsigned(wide_op_val2);
-assign mau_mulhsu = $signed(signed_op_val1) * $unsigned(wide_op_val2);
-assign mul = (d_funct3 == `MAU_MUL) ? mau_mul :
-	     (d_funct3 == `MAU_MULH) ? mau_mulh :
-	     (d_funct3 == `MAU_MULHU) ? mau_mulhu :
-	     (d_funct3 == `MAU_MULHSU) ? mau_mulhsu : 0;
 assign rem = $signed(d_op_val1) % $signed(d_op_val2);
+
+reg [31:0] quotient;
+wire [31:0] quotient_signed;
+reg [31:0] remainder;
+wire [31:0] remainder_signed;
+reg [31:0] numerator;
+reg [31:0] denominator;
+
+wire res_is_neg;
+wire signed_operation;
+
+assign res_is_neg  = d_op_val1[31] ^ d_op_val2[31];
+assign signed_operation = ~d_funct3[0];
+
+assign quotient_signed = -quotient;
+assign remainder_signed = -remainder;
+
+/* division */
+always @(posedge clk) begin if (rst) begin
+	div_counter <= 0;
+	end else begin
+	if (entering_x_freeze) begin
+		div_counter <= 31;
+		quotient <= 0;
+		remainder <= 0;
+		numerator <= signed_operation && d_op_val1[31] ? -d_op_val1 : d_op_val1;
+		denominator <= signed_operation && d_op_val2[31] ? -d_op_val2 : d_op_val2;
+	end else begin
+		remainder <= (remainder << 1) | numerator[div_counter];
+		if (((remainder << 1) | numerator[div_counter]) >= denominator) begin
+			remainder <= ((remainder << 1) | numerator[div_counter]) - denominator;
+			quotient[div_counter] <= 1;
+		end
+		div_counter <= div_counter - 1;
+	end
+end end
+
+/* div_finished flopping */
+always @(posedge clk) begin if (rst) begin
+	div_finished_reg <= 0;
+	end else begin
+	div_finished_reg <= div_finished;
+end end
+
+/* x_freeze flopping */
+always @(posedge clk) begin if (rst) begin
+	x_freeze_reg <= 0;
+	end else begin
+	x_freeze_reg <= x_freeze;
+end end
 
 always @(posedge clk) begin if (rst) begin
 	x_out <= 0;
@@ -298,14 +349,14 @@ end else if (x_en) begin
 	end
 	if (d_mau_en) begin
 		case (d_funct3)
-		`MAU_MUL:	x_out <= mul[31:0];
-		`MAU_MULH:	x_out <= mul[63:32];
-		`MAU_MULHSU:	x_out <= mul[63:32];
-		`MAU_MULHU:	x_out <= mul[63:32];
-		`MAU_DIV:	x_out <= (d_op_val2 == 0) ? -1 : $signed(d_op_val1) / $signed(d_op_val2);
-		`MAU_DIVU:	x_out <= (d_op_val2 == 0) ? -1 : d_op_val1 / d_op_val2;
-		`MAU_REM:	x_out <= (d_op_val2 == 0) ? d_op_val1 : rem;
-		`MAU_REMU:	x_out <= (d_op_val2 == 0) ? d_op_val1 : (d_op_val1 % d_op_val2);
+		`MAU_MUL:	x_out <= multiply[31:0];
+		`MAU_MULH:	x_out <= multiply[63:32];
+		`MAU_MULHSU:	x_out <= multiply[63:32];
+		`MAU_MULHU:	x_out <= multiply[63:32];
+		`MAU_DIV:	x_out <= (d_op_val2 == 0) ? -1 : res_is_neg ? quotient_signed : quotient;
+		`MAU_DIVU:	x_out <= (d_op_val2 == 0) ? -1 : quotient;
+		`MAU_REM:	x_out <= (d_op_val2 == 0) ? d_op_val1 : d_op_val1[31] ? remainder_signed : remainder;
+		`MAU_REMU:	x_out <= (d_op_val2 == 0) ? d_op_val1 : remainder;
 		endcase
 	end else begin
 		case (d_alu_op)
@@ -459,7 +510,7 @@ always @(posedge clk) begin
 	if (rst) begin
 		state <= FETCH_INSN;
 	end else begin
-		if (f_freeze | m_freeze) begin
+		if (f_freeze | m_freeze | x_freeze) begin
 			state <= state;
 		end else begin
 			state <= (state << 1) | w_en;
