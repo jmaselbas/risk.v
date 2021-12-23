@@ -343,7 +343,7 @@ end end
 
 /* memory output */
 wire m_freeze;
-assign m_freeze = (mem_d_rstrb && mem_d_rbusy) || (mem_d_wstrb && mem_d_wbusy);
+assign m_freeze = (mem_d_rstrb || mem_d_rbusy) || (mem_d_wstrb || mem_d_wbusy);
 
 reg [31:0]  m_out, m_npc;
 reg [4:0]   m_rd;
@@ -351,6 +351,7 @@ reg         m_taken, m_link;
 reg [11:0]  m_csr;
 reg         m_csr_wr;
 reg [31:0]  m_csr_val;
+reg m_en_r;
 
 wire [31:0] lsu_out;
 wire [7:0] lsu_out_byte;
@@ -361,14 +362,18 @@ assign mem_d_wdata = x_lsu_val;
 assign mem_d_wmask = (x_lsu_op == `LSU_SB) ? 4'b0001 << x_out[1:0] :
 		     (x_lsu_op == `LSU_SH) ? 4'b0011 << 2*x_out[1] :
 		     4'b1111;
-assign mem_d_wstrb = m_en && x_store;
-assign mem_d_rstrb = m_en && x_load;
+assign mem_d_wstrb = ~m_en_r && m_en && x_store;
+assign mem_d_rstrb = ~m_en_r && m_en && x_load;
 assign lsu_out = mem_d_rdata;
 assign lsu_out_byte = (mem_d_addr[1:0] == 2'b00) ? lsu_out[7:0] :
 		      (mem_d_addr[1:0] == 2'b01) ? lsu_out[15:8] :
 		      (mem_d_addr[1:0] == 2'b10) ? lsu_out[23:16] :
 		      lsu_out[31:24];
 assign lsu_out_half = mem_d_addr[1] ? lsu_out[31:16] : lsu_out[15:0];
+
+always @(posedge clk) begin
+	m_en_r <= m_en;
+end
 
 always @(posedge clk) begin if (rst) begin
 	m_out <= 0;
